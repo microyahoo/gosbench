@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -147,15 +146,48 @@ func putObject(service *s3.S3, objectName string, objectContent io.ReadSeeker, b
 // }
 
 func listObjects(service *s3.S3, prefix string, bucket string) (*s3.ListObjectsOutput, error) {
-	result, err := service.ListObjects(&s3.ListObjectsInput{
+	var (
+		marker   *string
+		result   *s3.ListObjectsOutput
+		contents []*s3.Object
+		err      error
+	)
+	for {
+		result, err = service.ListObjects(&s3.ListObjectsInput{
+			Bucket: &bucket,
+			Prefix: &prefix,
+			Marker: marker,
+		})
+		if err != nil {
+			// Cast err to awserr.Error to handle specific error codes.
+			aerr, ok := err.(awserr.Error)
+			if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
+				log.WithError(aerr).Errorf("Could not find prefix %s in bucket %s when querying properties", prefix, bucket)
+			}
+			return result, err
+		}
+		marker = result.NextMarker
+		contents = append(contents, result.Contents...)
+		if !aws.BoolValue(result.IsTruncated) {
+			break
+		}
+	}
+	if contents != nil {
+		result.Contents = contents
+	}
+	return result, nil
+}
+
+func headObjects(service *s3.S3, objectName string, bucket string, noFoundLog bool) (*s3.HeadObjectOutput, error) {
+	result, err := service.HeadObject(&s3.HeadObjectInput{
 		Bucket: &bucket,
-		Prefix: &prefix,
+		Key:    &objectName,
 	})
-	if err != nil {
+	if err != nil && noFoundLog {
 		// Cast err to awserr.Error to handle specific error codes.
 		aerr, ok := err.(awserr.Error)
 		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-			log.WithError(aerr).Errorf("Could not find prefix %s in bucket %s when querying properties", prefix, bucket)
+			log.WithError(aerr).Errorf("Could not find prefix %s in bucket %s when querying properties", objectName, bucket)
 		}
 	}
 	return result, err
@@ -170,7 +202,7 @@ func getObject(service *s3.S3, objectName string, bucket string, objectSize uint
 	if err != nil {
 		return err
 	}
-	numBytes, err := io.Copy(ioutil.Discard, result.Body)
+	numBytes, err := io.Copy(io.Discard, result.Body)
 	if err != nil {
 		return err
 	}
