@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -105,6 +106,7 @@ func putObject(service *s3.S3, objectName string, objectContent io.ReadSeeker, b
 		Body:   objectContent,
 	}, func(d *s3manager.Uploader) {
 		d.MaxUploadParts = 1
+		d.Concurrency = 20
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
@@ -159,17 +161,23 @@ func listObjects(service *s3.S3, prefix string, bucket string) (*s3.ListObjectsO
 	return result, err
 }
 
-func getObject(service *s3.S3, objectName string, bucket string) error {
-	// Create a downloader with the session and custom options
-	downloader := s3manager.NewDownloaderWithClient(service)
-	buf := aws.NewWriteAtBuffer([]byte{})
-	_, err := downloader.DownloadWithContext(ctx, buf, &s3.GetObjectInput{
+func getObject(service *s3.S3, objectName string, bucket string, objectSize uint64) error {
+	// Remove the allocation of buffer
+	result, err := svc.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: &bucket,
 		Key:    &objectName,
-	}, func(d *s3manager.Downloader) {
-		d.PartSize = 64 * 1024 * 1024 // 64MB parts
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	numBytes, err := io.Copy(ioutil.Discard, result.Body)
+	if err != nil {
+		return err
+	}
+	if numBytes != int64(objectSize) {
+		return fmt.Errorf("Expected object length %d is not matched to actual object length %d", objectSize, numBytes)
+	}
+	return nil
 }
 
 func deleteObject(service *s3.S3, objectName string, bucket string) error {

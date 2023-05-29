@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -21,6 +22,7 @@ var prometheusPort int
 var debug, trace bool
 
 func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 	})
