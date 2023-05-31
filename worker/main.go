@@ -150,8 +150,12 @@ func PerfTest(testConfig *common.TestCaseConfiguration, Workqueue *Workqueue, wo
 				log.WithError(err).Error("Error during cleanup - ignoring")
 			}
 		}
-		for bucket := uint64(0); bucket < testConfig.Buckets.NumberMax; bucket++ {
-			err := deleteBucket(housekeepingSvc, fmt.Sprintf("%s%s%d", workerID, testConfig.BucketPrefix, bucket))
+		for bucket := testConfig.Buckets.NumberMin; bucket <= testConfig.Buckets.NumberMax; bucket++ {
+			bucketName := fmt.Sprintf("%s%s%d", workerID, testConfig.BucketPrefix, bucket)
+			if testConfig.WorkerShareBuckets {
+				bucketName = fmt.Sprintf("%s%d", testConfig.BucketPrefix, bucket)
+			}
+			err := deleteBucket(housekeepingSvc, bucketName)
 			if err != nil {
 				log.WithError(err).Error("Error during bucket deleting - ignoring")
 			}
@@ -203,7 +207,13 @@ func workUntilOps(Workqueue *Workqueue, workChannel chan WorkItem, maxOps uint64
 			currentOps++
 			workChannel <- work
 		}
+
+		remainOps := maxOps - currentOps
 		for _, work := range *Workqueue.Queue {
+			if remainOps <= 0 {
+				break
+			}
+			remainOps--
 			switch work.(type) {
 			case DeleteOperation:
 				log.Debug("Re-Running Work preparation for delete job started")
@@ -235,8 +245,9 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 		Workqueue.OperationValues = append(Workqueue.OperationValues, KV{Key: "delete"})
 	}
 
-	bucketCount := common.EvaluateDistribution(testConfig.Buckets.NumberMin, testConfig.Buckets.NumberMax, &testConfig.Buckets.NumberLast, 1, testConfig.Buckets.NumberDistribution)
-	for bucket := uint64(0); bucket < bucketCount; bucket++ {
+	for bucketn := testConfig.Buckets.NumberMin; bucketn <= testConfig.Buckets.NumberMax; bucketn++ {
+		bucket := common.EvaluateDistribution(testConfig.Buckets.NumberMin, testConfig.Buckets.NumberMax, &testConfig.Buckets.NumberLast, 1, testConfig.Buckets.NumberDistribution)
+
 		bucketName := fmt.Sprintf("%s%s%d", workerID, testConfig.BucketPrefix, bucket)
 		if shareBucketName {
 			bucketName = fmt.Sprintf("%s%d", testConfig.BucketPrefix, bucket)
@@ -255,8 +266,9 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 			PreExistingObjectCount = uint64(len(PreExistingObjects.Contents))
 			log.Debugf("Found %d objects in bucket %s", PreExistingObjectCount, bucketName)
 		}
-		objectCount := common.EvaluateDistribution(testConfig.Objects.NumberMin, testConfig.Objects.NumberMax, &testConfig.Objects.NumberLast, 1, testConfig.Objects.NumberDistribution)
-		for object := uint64(0); object < objectCount; object++ {
+
+		for objectn := testConfig.Objects.NumberMin; objectn <= testConfig.Objects.NumberMax; objectn++ {
+			object := common.EvaluateDistribution(testConfig.Objects.NumberMin, testConfig.Objects.NumberMax, &testConfig.Objects.NumberLast, 1, testConfig.Objects.NumberDistribution)
 			objectSize := common.EvaluateDistribution(testConfig.Objects.SizeMin, testConfig.Objects.SizeMax, &testConfig.Objects.SizeLast, 1, testConfig.Objects.SizeDistribution)
 
 			nextOp := GetNextOperation(Workqueue)

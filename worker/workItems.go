@@ -114,6 +114,12 @@ func (op ListOperation) Prepare() error {
 // Prepare prepares the execution of the DeleteOperation
 func (op DeleteOperation) Prepare() error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Preparing DeleteOperation")
+	// check whether object is exist or not
+	_, err := headObjects(housekeepingSvc, op.ObjectName, op.Bucket, false)
+	// object already exist
+	if err == nil {
+		return nil
+	}
 	return putObject(housekeepingSvc, op.ObjectName, bytes.NewReader(generateRandomBytes(op.ObjectSize)), op.Bucket)
 }
 

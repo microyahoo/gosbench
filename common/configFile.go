@@ -200,10 +200,10 @@ func EvaluateDistribution(min uint64, max uint64, lastNumber *uint64, increment 
 		validSize := max - min
 		return ((rand.Uint64() % validSize) + min)
 	case "sequential":
-		if *lastNumber+increment > max {
-			return max
-		}
 		*lastNumber = *lastNumber + increment
+		if max < *lastNumber || *lastNumber < min {
+			*lastNumber = min // rewrap
+		}
 		return *lastNumber
 	}
 	return 0
