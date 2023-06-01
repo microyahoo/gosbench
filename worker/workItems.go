@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -9,47 +8,44 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/mulbc/gosbench/common"
 )
 
 // WorkItem is an interface for general work operations
 // They can be read,write,list,delete or a stopper
 type WorkItem interface {
-	Prepare() error
-	Do() error
+	Prepare(conf *common.TestCaseConfiguration) error
+	Do(conf *common.TestCaseConfiguration) error
 	Clean() error
+}
+
+type BaseOperation struct {
+	TestName   string
+	Bucket     string
+	ObjectName string
+	ObjectSize uint64
 }
 
 // ReadOperation stands for a read operation
 type ReadOperation struct {
-	TestName                 string
-	Bucket                   string
-	ObjectName               string
-	ObjectSize               uint64
+	*BaseOperation
 	WorksOnPreexistingObject bool
 }
 
 // WriteOperation stands for a write operation
 type WriteOperation struct {
-	TestName   string
-	Bucket     string
-	ObjectName string
-	ObjectSize uint64
+	*BaseOperation
 }
 
 // ListOperation stands for a list operation
 type ListOperation struct {
-	TestName   string
-	Bucket     string
-	ObjectName string
-	ObjectSize uint64
+	*BaseOperation
 }
 
 // DeleteOperation stands for a delete operation
 type DeleteOperation struct {
-	TestName   string
-	Bucket     string
-	ObjectName string
-	ObjectSize uint64
+	*BaseOperation
 }
 
 // Stopper marks the end of a workqueue when using
@@ -91,28 +87,28 @@ func IncreaseOperationValue(operation string, value float64, Queue *Workqueue) e
 }
 
 // Prepare prepares the execution of the ReadOperation
-func (op *ReadOperation) Prepare() error {
+func (op *ReadOperation) Prepare(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).WithField("Preexisting?", op.WorksOnPreexistingObject).Debug("Preparing ReadOperation")
 	if op.WorksOnPreexistingObject {
 		return nil
 	}
-	return putObject(housekeepingSvc, op.ObjectName, bytes.NewReader(generateRandomBytes(op.ObjectSize)), op.Bucket)
+	return putObject(housekeepingSvc, conf, op.BaseOperation)
 }
 
 // Prepare prepares the execution of the WriteOperation
-func (op *WriteOperation) Prepare() error {
+func (op *WriteOperation) Prepare(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Preparing WriteOperation")
 	return nil
 }
 
 // Prepare prepares the execution of the ListOperation
-func (op *ListOperation) Prepare() error {
+func (op *ListOperation) Prepare(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Preparing ListOperation")
-	return putObject(housekeepingSvc, op.ObjectName, bytes.NewReader(generateRandomBytes(op.ObjectSize)), op.Bucket)
+	return putObject(housekeepingSvc, conf, op.BaseOperation)
 }
 
 // Prepare prepares the execution of the DeleteOperation
-func (op *DeleteOperation) Prepare() error {
+func (op *DeleteOperation) Prepare(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Preparing DeleteOperation")
 	// check whether object is exist or not
 	_, err := headObjects(housekeepingSvc, op.ObjectName, op.Bucket, false)
@@ -120,16 +116,16 @@ func (op *DeleteOperation) Prepare() error {
 	if err == nil {
 		return nil
 	}
-	return putObject(housekeepingSvc, op.ObjectName, bytes.NewReader(generateRandomBytes(op.ObjectSize)), op.Bucket)
+	return putObject(housekeepingSvc, conf, op.BaseOperation)
 }
 
 // Prepare does nothing here
-func (op *Stopper) Prepare() error {
+func (op *Stopper) Prepare(conf *common.TestCaseConfiguration) error {
 	return nil
 }
 
 // Do executes the actual work of the ReadOperation
-func (op *ReadOperation) Do() error {
+func (op *ReadOperation) Do(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).WithField("Preexisting?", op.WorksOnPreexistingObject).Debug("Doing ReadOperation")
 	start := time.Now()
 	err := getObject(svc, op.ObjectName, op.Bucket, op.ObjectSize)
@@ -145,10 +141,10 @@ func (op *ReadOperation) Do() error {
 }
 
 // Do executes the actual work of the WriteOperation
-func (op *WriteOperation) Do() error {
+func (op *WriteOperation) Do(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Doing WriteOperation")
 	start := time.Now()
-	err := putObject(svc, op.ObjectName, bytes.NewReader(generateRandomBytes(op.ObjectSize)), op.Bucket)
+	err := putObject(svc, conf, op.BaseOperation)
 	duration := time.Since(start)
 	promLatency.WithLabelValues(op.TestName, "PUT").Observe(float64(duration.Milliseconds()))
 	if err != nil {
@@ -161,7 +157,7 @@ func (op *WriteOperation) Do() error {
 }
 
 // Do executes the actual work of the ListOperation
-func (op *ListOperation) Do() error {
+func (op *ListOperation) Do(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Doing ListOperation")
 	start := time.Now()
 	_, err := listObjects(svc, op.ObjectName, op.Bucket)
@@ -176,7 +172,7 @@ func (op *ListOperation) Do() error {
 }
 
 // Do executes the actual work of the DeleteOperation
-func (op *DeleteOperation) Do() error {
+func (op *DeleteOperation) Do(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Doing DeleteOperation")
 	start := time.Now()
 	err := deleteObject(svc, op.ObjectName, op.Bucket)
@@ -191,7 +187,7 @@ func (op *DeleteOperation) Do() error {
 }
 
 // Do does nothing here
-func (op *Stopper) Do() error {
+func (op *Stopper) Do(conf *common.TestCaseConfiguration) error {
 	return nil
 }
 
@@ -239,7 +235,7 @@ func DoWork(workChannel <-chan WorkItem, notifyChan <-chan struct{}, wg *sync.Wa
 				log.Debug("Found the end of the work Queue - stopping")
 				return
 			}
-			err := work.Do()
+			err := work.Do(config.Test)
 			if err != nil {
 				log.WithError(err).Error("Issues when performing work - ignoring")
 			}

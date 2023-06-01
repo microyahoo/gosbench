@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"strings"
 	"time"
@@ -46,7 +47,6 @@ type TestCaseConfiguration struct {
 	Objects struct {
 		SizeMin            uint64 `yaml:"size_min" json:"size_min"`
 		SizeMax            uint64 `yaml:"size_max" json:"size_max"`
-		PartSize           uint64 `yaml:"part_size" json:"part_size"`
 		SizeLast           uint64
 		SizeDistribution   string `yaml:"size_distribution" json:"size_distribution"`
 		NumberMin          uint64 `yaml:"number_min" json:"number_min"`
@@ -61,20 +61,29 @@ type TestCaseConfiguration struct {
 		NumberLast         uint64
 		NumberDistribution string `yaml:"number_distribution" json:"number_distribution"`
 	} `yaml:"buckets" json:"buckets"`
-	Name               string   `yaml:"name" json:"name"`
-	BucketPrefix       string   `yaml:"bucket_prefix" json:"bucket_prefix"`
-	ObjectPrefix       string   `yaml:"object_prefix" json:"object_prefix"`
-	Runtime            Duration `yaml:"stop_with_runtime" json:"stop_with_runtime"`
-	OpsDeadline        uint64   `yaml:"stop_with_ops" json:"stop_with_ops"`
-	Workers            int      `yaml:"workers" json:"workers"`
-	WorkerShareBuckets bool     `yaml:"workers_share_buckets" json:"workers_share_buckets"`
-	ParallelClients    int      `yaml:"parallel_clients" json:"parallel_clients"`
-	CleanAfter         bool     `yaml:"clean_after" json:"clean_after"`
-	ReadWeight         int      `yaml:"read_weight" json:"read_weight"`
-	ExistingReadWeight int      `yaml:"existing_read_weight" json:"existing_read_weight"`
-	WriteWeight        int      `yaml:"write_weight" json:"write_weight"`
-	ListWeight         int      `yaml:"list_weight" json:"list_weight"`
-	DeleteWeight       int      `yaml:"delete_weight" json:"delete_weight"`
+	Name               string    `yaml:"name" json:"name"`
+	BucketPrefix       string    `yaml:"bucket_prefix" json:"bucket_prefix"`
+	ObjectPrefix       string    `yaml:"object_prefix" json:"object_prefix"`
+	Runtime            Duration  `yaml:"stop_with_runtime" json:"stop_with_runtime"`
+	OpsDeadline        uint64    `yaml:"stop_with_ops" json:"stop_with_ops"`
+	Workers            int       `yaml:"workers" json:"workers"`
+	WorkerShareBuckets bool      `yaml:"workers_share_buckets" json:"workers_share_buckets"`
+	SkipPrepare        bool      `yaml:"skip_prepare" json:"skip_prepare"`
+	ParallelClients    int       `yaml:"parallel_clients" json:"parallel_clients"`
+	CleanAfter         bool      `yaml:"clean_after" json:"clean_after"`
+	ReadWeight         int       `yaml:"read_weight" json:"read_weight"`
+	ExistingReadWeight int       `yaml:"existing_read_weight" json:"existing_read_weight"`
+	WriteWeight        int       `yaml:"write_weight" json:"write_weight"`
+	ListWeight         int       `yaml:"list_weight" json:"list_weight"`
+	DeleteWeight       int       `yaml:"delete_weight" json:"delete_weight"`
+	WriteOption        *S3Option `yaml:"write_option" json:"write_option"`
+}
+
+type S3Option struct {
+	MaxUploadParts    int    `yaml:"max_upload_parts" json:"max_upload_parts"`
+	UploadConcurrency int    `yaml:"upload_concurrency" json:"upload_concurrency"`
+	ChunkSize         int64  `yaml:"chunk_size" json:"chunk_size"`
+	Unit              string `yaml:"unit" json:"unit"`
 }
 
 // Testconf contains all the information necessary to set up a distributed test
@@ -159,25 +168,38 @@ func checkTestCase(testcase *TestCaseConfiguration) error {
 		return fmt.Errorf("Please set the Objects unit")
 	}
 
-	var toByteMultiplicator uint64
-	switch strings.ToUpper(testcase.Objects.Unit) {
-	case "B":
-		toByteMultiplicator = BYTE
-	case "KB", "K":
-		toByteMultiplicator = KILOBYTE
-	case "MB", "M":
-		toByteMultiplicator = MEGABYTE
-	case "GB", "G":
-		toByteMultiplicator = GIGABYTE
-	case "TB", "T":
-		toByteMultiplicator = TERABYTE
-	default:
-		return fmt.Errorf("Could not parse unit size - please use one of B/KB/MB/GB/TB")
+	byteMultiplicator := func(unit string) (int, error) {
+		switch strings.ToUpper(unit) {
+		case "B":
+			return BYTE, nil
+		case "KB", "K":
+			return KILOBYTE, nil
+		case "MB", "M":
+			return MEGABYTE, nil
+		case "GB", "G":
+			return GIGABYTE, nil
+		case "TB", "T":
+			return TERABYTE, nil
+		default:
+			return 0, fmt.Errorf("Could not parse unit size - please use one of B/KB/MB/GB/TB")
+		}
 	}
+	multiplicator, err := byteMultiplicator(testcase.Objects.Unit)
+	if err != nil {
+		return err
+	}
+	toByteMultiplicator := uint64(multiplicator)
 
 	testcase.Objects.SizeMin = testcase.Objects.SizeMin * toByteMultiplicator
 	testcase.Objects.SizeMax = testcase.Objects.SizeMax * toByteMultiplicator
-	testcase.Objects.PartSize = testcase.Objects.PartSize * toByteMultiplicator
+	if testcase.WriteOption != nil {
+		writeMultiplicator, err := byteMultiplicator(testcase.WriteOption.Unit)
+		if err != nil {
+			return err
+		}
+		toWriteByteMultiplicator := int64(writeMultiplicator)
+		testcase.WriteOption.ChunkSize = testcase.WriteOption.ChunkSize * toWriteByteMultiplicator
+	}
 	return nil
 }
 
@@ -263,4 +285,30 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return errors.New("invalid duration")
 	}
 	return nil
+}
+
+var ReadFile = ioutil.ReadFile
+
+func LoadConfigFromFile(configFile string) Testconf {
+	configFileContent, err := ReadFile(configFile)
+	if err != nil {
+		log.WithError(err).Fatalf("Error reading config file:")
+	}
+	var config Testconf
+
+	if strings.HasSuffix(configFile, ".yaml") || strings.HasSuffix(configFile, ".yml") {
+		err = yaml.Unmarshal(configFileContent, &config)
+		if err != nil {
+			log.WithError(err).Fatalf("Error unmarshaling yaml config file:")
+		}
+	} else if strings.HasSuffix(configFile, ".json") {
+		err = json.Unmarshal(configFileContent, &config)
+		if err != nil {
+			log.WithError(err).Fatalf("Error unmarshaling json config file:")
+		}
+	} else {
+		log.WithError(err).Fatalf("Configuration file must be a yaml or json formatted file")
+	}
+
+	return config
 }
