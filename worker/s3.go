@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -95,18 +96,30 @@ func InitS3(config common.S3Configuration) {
 	log.Debug("S3 Init done")
 }
 
-func putObject(service *s3.S3, objectName string, objectContent io.ReadSeeker, bucket string) error {
-	// Create an uploader with S3 client and custom options
-	uploader := s3manager.NewUploaderWithClient(service)
+func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
+	bucket := op.Bucket
+	objectName := op.ObjectName
+	objectContent := bytes.NewReader(generateRandomBytes(op.ObjectSize))
+	if conf.WriteOption != nil {
+		// Create an uploader with S3 client and custom options
+		uploader := s3manager.NewUploaderWithClient(service)
 
-	_, err := uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket: &bucket,
-		Key:    &objectName,
-		Body:   objectContent,
-	}, func(d *s3manager.Uploader) {
-		d.MaxUploadParts = 1
-		d.Concurrency = 20
-	})
+		_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+			Bucket: &bucket,
+			Key:    &objectName,
+			Body:   objectContent,
+		}, func(d *s3manager.Uploader) {
+			d.MaxUploadParts = conf.WriteOption.MaxUploadParts
+			d.Concurrency = conf.WriteOption.UploadConcurrency
+			d.PartSize = conf.WriteOption.ChunkSize
+		})
+	} else {
+		_, err = service.PutObjectWithContext(ctx, &s3.PutObjectInput{
+			Bucket: &bucket,
+			Key:    &objectName,
+			Body:   objectContent,
+		})
+	}
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
 			// If the SDK can determine the request or retry delay was canceled
@@ -121,29 +134,6 @@ func putObject(service *s3.S3, objectName string, objectContent io.ReadSeeker, b
 	log.WithField("bucket", bucket).WithField("key", objectName).Tracef("Upload successful")
 	return err
 }
-
-// func getObjectProperties(service *s3.S3, objectName string, bucket string) {
-// 	service.ListObjects(&s3.ListObjectsInput{
-// 		Bucket: &bucket,
-// 	})
-// 	result, err := service.GetObjectWithContext(ctx, &s3.GetObjectInput{
-// 		Bucket: &bucket,
-// 		Key:    &objectName,
-// 	})
-// 	if err != nil {
-// 		// Cast err to awserr.Error to handle specific error codes.
-// 		aerr, ok := err.(awserr.Error)
-// 		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-// 			log.WithError(aerr).Errorf("Could not find object %s in bucket %s when querying properties", objectName, bucket)
-// 		}
-// 	}
-
-// 	// Make sure to close the body when done with it for S3 GetObject APIs or
-// 	// will leak connections.
-// 	defer result.Body.Close()
-
-// 	log.Debugf("Object Properties:\n%+v", result)
-// }
 
 func listObjects(service *s3.S3, prefix string, bucket string) (*s3.ListObjectsOutput, error) {
 	var (

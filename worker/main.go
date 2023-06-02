@@ -88,10 +88,12 @@ func connectToServer(serverAddress string) error {
 			InitS3(*config.S3Config)
 			fillWorkqueue(config.Test, Workqueue, config.WorkerID, config.Test.WorkerShareBuckets)
 
-			for _, work := range *Workqueue.Queue {
-				err = work.Prepare()
-				if err != nil {
-					log.WithError(err).Error("Error during work preparation - ignoring")
+			if !config.Test.SkipPrepare {
+				for _, work := range *Workqueue.Queue {
+					err = work.Prepare(config.Test)
+					if err != nil {
+						log.WithError(err).Error("Error during work preparation - ignoring")
+					}
 				}
 			}
 			log.Info("Preparations finished - waiting on server to start work")
@@ -179,16 +181,20 @@ func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyCha
 			case workChannel <- work:
 			}
 		}
-		for _, work := range *Workqueue.Queue {
-			switch work.(type) {
-			case *DeleteOperation:
-				log.Debug("Re-Running Work preparation for delete job started")
-				err := work.Prepare()
-				if err != nil {
-					log.WithError(err).Error("Error during work preparation - ignoring")
+		if !config.Test.SkipPrepare {
+			for _, work := range *Workqueue.Queue {
+				switch work.(type) {
+				case *DeleteOperation:
+					log.Debug("Re-Running Work preparation for delete job started")
+					err := work.Prepare(config.Test)
+					if err != nil {
+						log.WithError(err).Error("Error during work preparation - ignoring")
+					}
+					log.Debug("Delete preparation re-run finished")
 				}
-				log.Debug("Delete preparation re-run finished")
 			}
+		} else {
+			log.Debug("Skip to delete preparation re-run finished")
 		}
 	}
 }
@@ -217,11 +223,14 @@ func workUntilOps(Workqueue *Workqueue, workChannel chan WorkItem, maxOps uint64
 			switch work.(type) {
 			case *DeleteOperation:
 				log.Debug("Re-Running Work preparation for delete job started")
-				err := work.Prepare()
-				if err != nil {
-					log.WithError(err).Error("Error during work preparation - ignoring")
+				if !config.Test.SkipPrepare {
+					err := work.Prepare(config.Test)
+					if err != nil {
+						log.WithError(err).Error("Error during work preparation - ignoring")
+					}
+					log.Debug("Delete preparation re-run finished")
 				}
-				log.Debug("Delete preparation re-run finished")
+				log.Debug("Skip to delete preparation re-run finished")
 			}
 		}
 	}
@@ -284,10 +293,12 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
 				new := &ReadOperation{
-					TestName:                 testConfig.Name,
-					Bucket:                   bucketName,
-					ObjectName:               fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
-					ObjectSize:               objectSize,
+					BaseOperation: &BaseOperation{
+						TestName:   testConfig.Name,
+						Bucket:     bucketName,
+						ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
+						ObjectSize: objectSize,
+					},
 					WorksOnPreexistingObject: false,
 				}
 				*Workqueue.Queue = append(*Workqueue.Queue, new)
@@ -297,10 +308,12 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
 				new := &ReadOperation{
-					TestName:                 testConfig.Name,
-					Bucket:                   bucketName,
-					ObjectName:               *preExistingObjects.Contents[object%preExistingObjectCount].Key,
-					ObjectSize:               uint64(*preExistingObjects.Contents[object%preExistingObjectCount].Size),
+					BaseOperation: &BaseOperation{
+						TestName:   testConfig.Name,
+						Bucket:     bucketName,
+						ObjectName: *preExistingObjects.Contents[object%preExistingObjectCount].Key,
+						ObjectSize: uint64(*preExistingObjects.Contents[object%preExistingObjectCount].Size),
+					},
 					WorksOnPreexistingObject: true,
 				}
 				*Workqueue.Queue = append(*Workqueue.Queue, new)
@@ -310,10 +323,12 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
 				new := &WriteOperation{
-					TestName:   testConfig.Name,
-					Bucket:     bucketName,
-					ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
-					ObjectSize: objectSize,
+					BaseOperation: &BaseOperation{
+						TestName:   testConfig.Name,
+						Bucket:     bucketName,
+						ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
+						ObjectSize: objectSize,
+					},
 				}
 				*Workqueue.Queue = append(*Workqueue.Queue, new)
 			case "list":
@@ -322,10 +337,12 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
 				new := &ListOperation{
-					TestName:   testConfig.Name,
-					Bucket:     bucketName,
-					ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
-					ObjectSize: objectSize,
+					BaseOperation: &BaseOperation{
+						TestName:   testConfig.Name,
+						Bucket:     bucketName,
+						ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
+						ObjectSize: objectSize,
+					},
 				}
 				*Workqueue.Queue = append(*Workqueue.Queue, new)
 			case "delete":
@@ -334,10 +351,12 @@ func fillWorkqueue(testConfig *common.TestCaseConfiguration, Workqueue *Workqueu
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
 				new := &DeleteOperation{
-					TestName:   testConfig.Name,
-					Bucket:     bucketName,
-					ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
-					ObjectSize: objectSize,
+					BaseOperation: &BaseOperation{
+						TestName:   testConfig.Name,
+						Bucket:     bucketName,
+						ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
+						ObjectSize: objectSize,
+					},
 				}
 				*Workqueue.Queue = append(*Workqueue.Queue, new)
 			}

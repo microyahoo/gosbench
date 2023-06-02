@@ -40,7 +40,6 @@ tests:
     objects:
       size_min: 4
       size_max: 4
-      part_size: 0
       # distribution: constant, random, sequential
       size_distribution: constant
       unit: KB
@@ -72,12 +71,16 @@ tests:
     # Remove all generated buckets and its content after run
     # clean_after: True
     clean_after: False
+    write_option:
+      # max_upload_parts: 10000
+      # upload_concurrency: 4
+      # chunk_size: 40
+      # unit: MB
   - name: read-4k
     existing_read_weight: 100
     objects:
       size_min: 4
       size_max: 4
-      part_size: 0
       size_distribution: constant
       unit: KB
       number_min: 1
@@ -99,7 +102,6 @@ tests:
     objects:
       size_min: 4
       size_max: 4
-      part_size: 0
       size_distribution: constant
       unit: KB
       number_min: 1
@@ -112,6 +114,7 @@ tests:
     bucket_prefix: gosbench-prefix-
     object_prefix: obj-
     stop_with_ops: 10
+    skip_prepare: false
     workers: 3
     workers_share_buckets: True
     parallel_clients: 3
