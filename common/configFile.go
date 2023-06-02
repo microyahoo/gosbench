@@ -77,13 +77,14 @@ type TestCaseConfiguration struct {
 	ListWeight         int       `yaml:"list_weight" json:"list_weight"`
 	DeleteWeight       int       `yaml:"delete_weight" json:"delete_weight"`
 	WriteOption        *S3Option `yaml:"write_option" json:"write_option"`
+	ReadOption         *S3Option `yaml:"read_option" json:"read_option"`
 }
 
 type S3Option struct {
-	MaxUploadParts    int    `yaml:"max_upload_parts" json:"max_upload_parts"`
-	UploadConcurrency int    `yaml:"upload_concurrency" json:"upload_concurrency"`
-	ChunkSize         int64  `yaml:"chunk_size" json:"chunk_size"`
-	Unit              string `yaml:"unit" json:"unit"`
+	MaxUploadParts int    `yaml:"max_upload_parts" json:"max_upload_parts"` // only for write
+	Concurrency    int    `yaml:"concurrency" json:"concurrency"`
+	ChunkSize      int64  `yaml:"chunk_size" json:"chunk_size"`
+	Unit           string `yaml:"unit" json:"unit"`
 }
 
 // Testconf contains all the information necessary to set up a distributed test
@@ -123,7 +124,7 @@ type WorkerMessage struct {
 }
 
 // CheckConfig checks the global config
-func CheckConfig(config Testconf) {
+func CheckConfig(config *Testconf) {
 	for _, testcase := range config.Tests {
 		// log.Debugf("Checking testcase with prefix %s", testcase.BucketPrefix)
 		err := checkTestCase(testcase)
@@ -192,6 +193,14 @@ func checkTestCase(testcase *TestCaseConfiguration) error {
 
 	testcase.Objects.SizeMin = testcase.Objects.SizeMin * toByteMultiplicator
 	testcase.Objects.SizeMax = testcase.Objects.SizeMax * toByteMultiplicator
+	if testcase.ReadOption != nil {
+		readMultiplicator, err := byteMultiplicator(testcase.ReadOption.Unit)
+		if err != nil {
+			return err
+		}
+		toReadByteMultiplicator := int64(readMultiplicator)
+		testcase.ReadOption.ChunkSize = testcase.ReadOption.ChunkSize * toReadByteMultiplicator
+	}
 	if testcase.WriteOption != nil {
 		writeMultiplicator, err := byteMultiplicator(testcase.WriteOption.Unit)
 		if err != nil {
@@ -289,7 +298,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 var ReadFile = ioutil.ReadFile
 
-func LoadConfigFromFile(configFile string) Testconf {
+func LoadConfigFromFile(configFile string) *Testconf {
 	configFileContent, err := ReadFile(configFile)
 	if err != nil {
 		log.WithError(err).Fatalf("Error reading config file:")
@@ -310,5 +319,5 @@ func LoadConfigFromFile(configFile string) Testconf {
 		log.WithError(err).Fatalf("Configuration file must be a yaml or json formatted file")
 	}
 
-	return config
+	return &config
 }
