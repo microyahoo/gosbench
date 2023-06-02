@@ -339,13 +339,13 @@ func Test_loadConfigFromFile(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Testconf
+		want *Testconf
 	}{
-		{"empty file", args{[]byte{}}, Testconf{}},
+		{"empty file", args{[]byte{}}, &Testconf{}},
 		{"s3 write option nil", args{[]byte(`tests:
   - name: read-4k
     write_option:
-`)}, Testconf{
+`)}, &Testconf{
 			Tests: []*TestCaseConfiguration{
 				{
 					Name:        "read-4k",
@@ -358,7 +358,7 @@ func Test_loadConfigFromFile(t *testing.T) {
     write_option:
       max_upload_parts:
       upload_concurrency:
-`)}, Testconf{
+`)}, &Testconf{
 			Tests: []*TestCaseConfiguration{
 				{
 					Name:        "write-4k",
@@ -399,12 +399,16 @@ tests:
     workers_share_buckets: False
     parallel_clients: 3
     clean_after: True
+    read_option:
+      concurrency: 8
+      chunk_size: 1
+      unit: GB
     write_option:
       max_upload_parts: 400
-      upload_concurrency: 4
+      concurrency: 4
       chunk_size: 4
       unit: MB
-`)}, Testconf{
+`)}, &Testconf{
 			S3Config: []*S3Configuration{
 				{
 					Endpoint:      "http://10.9.8.72:80",
@@ -456,11 +460,16 @@ tests:
 						NumberMax:          100000,
 						NumberDistribution: "sequential",
 					},
+					ReadOption: &S3Option{
+						Concurrency: 8,
+						ChunkSize:   1,
+						Unit:        "GB",
+					},
 					WriteOption: &S3Option{
-						MaxUploadParts:    400,
-						UploadConcurrency: 4,
-						ChunkSize:         4,
-						Unit:              "MB",
+						MaxUploadParts: 400,
+						Concurrency:    4,
+						ChunkSize:      4,
+						Unit:           "MB",
 					},
 				},
 			},

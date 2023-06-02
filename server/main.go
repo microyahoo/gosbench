@@ -91,10 +91,8 @@ func main() {
 	}
 }
 
-func scheduleTests(config common.Testconf) {
-
+func scheduleTests(config *common.Testconf) {
 	for testNumber, test := range config.Tests {
-
 		doneChannel := make(chan bool, test.Workers)
 		resultChannel := make(chan common.BenchmarkResult, test.Workers)
 		continueWorkers := make(chan bool, test.Workers)

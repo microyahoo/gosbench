@@ -110,7 +110,7 @@ func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 			Body:   objectContent,
 		}, func(d *s3manager.Uploader) {
 			d.MaxUploadParts = conf.WriteOption.MaxUploadParts
-			d.Concurrency = conf.WriteOption.UploadConcurrency
+			d.Concurrency = conf.WriteOption.Concurrency
 			d.PartSize = conf.WriteOption.ChunkSize
 		})
 	} else {
@@ -183,18 +183,43 @@ func headObjects(service *s3.S3, objectName string, bucket string, noFoundLog bo
 	return result, err
 }
 
-func getObject(service *s3.S3, objectName string, bucket string, objectSize uint64) error {
-	// Remove the allocation of buffer
-	result, err := svc.GetObjectWithContext(ctx, &s3.GetObjectInput{
-		Bucket: &bucket,
-		Key:    &objectName,
-	})
-	if err != nil {
-		return err
-	}
-	numBytes, err := io.Copy(io.Discard, result.Body)
-	if err != nil {
-		return err
+type discarder struct {
+}
+
+func (d *discarder) WriteAt(p []byte, off int64) (n int, err error) {
+	return len(p), nil
+}
+
+func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
+	var (
+		bucket     = op.Bucket
+		objectName = op.ObjectName
+		objectSize = op.ObjectSize
+		numBytes   int64
+	)
+	if conf.ReadOption != nil {
+		// Create a downloader with the session and custom options
+		downloader := s3manager.NewDownloaderWithClient(service)
+		_, err = downloader.DownloadWithContext(ctx, &discarder{}, &s3.GetObjectInput{
+			Bucket: &bucket,
+			Key:    &objectName,
+		}, func(d *s3manager.Downloader) {
+			d.Concurrency = conf.ReadOption.Concurrency
+			d.PartSize = conf.ReadOption.ChunkSize
+		})
+	} else {
+		// Remove the allocation of buffer
+		result, err := svc.GetObjectWithContext(ctx, &s3.GetObjectInput{
+			Bucket: &bucket,
+			Key:    &objectName,
+		})
+		if err != nil {
+			return err
+		}
+		numBytes, err = io.Copy(io.Discard, result.Body)
+		if err != nil {
+			return err
+		}
 	}
 	if numBytes != int64(objectSize) {
 		return fmt.Errorf("Expected object length %d is not matched to actual object length %d", objectSize, numBytes)

@@ -73,7 +73,7 @@ tests:
     clean_after: False
     write_option:
       # max_upload_parts: 10000
-      # upload_concurrency: 4
+      # concurrency: 4
       # chunk_size: 40
       # unit: MB
   - name: read-4k
@@ -97,6 +97,10 @@ tests:
     workers_share_buckets: True
     parallel_clients: 3
     clean_after: False
+    read_option:
+      # concurrency: 4
+      # chunk_size: 40
+      # unit: MB
   - name: clean-4k
     delete_weight: 100
     objects:

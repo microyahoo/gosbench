@@ -128,7 +128,7 @@ func (op *Stopper) Prepare(conf *common.TestCaseConfiguration) error {
 func (op *ReadOperation) Do(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).WithField("Preexisting?", op.WorksOnPreexistingObject).Debug("Doing ReadOperation")
 	start := time.Now()
-	err := getObject(svc, op.ObjectName, op.Bucket, op.ObjectSize)
+	err := getObject(svc, conf, op.BaseOperation)
 	duration := time.Since(start)
 	promLatency.WithLabelValues(op.TestName, "GET").Observe(float64(duration.Milliseconds()))
 	if err != nil {

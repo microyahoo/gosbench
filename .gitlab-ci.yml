@@ -1,0 +1,21 @@
+stages:
+  - unit-test
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^dev$/
+    - if: $CI_COMMIT_BRANCH =~ /^main$/  # release branch
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  
+
+variables:
+  # Git
+  GIT_DEPTH: "1"
+  GIT_STRATEGY: clone
+
+unit-test:
+  image: reg.deeproute.ai/deeproute-public/cloud-storage:v1.0.4
+  tags:
+    - build
+  stage: unit-test
+  script:
+    - make test
