@@ -394,6 +394,7 @@ tests:
     object_prefix: obj-
     stop_with_ops: 10
     stop_with_runtime: 36000s # Example with 60 seconds runtime
+    timeout: 72000s
     skip_prepare: true
     workers: 3
     workers_share_buckets: False
@@ -425,6 +426,7 @@ tests:
 					BucketPrefix:       "gosbench-prefix-",
 					ObjectPrefix:       "obj-",
 					Runtime:            Duration(36000 * time.Second),
+					Timeout:            Duration(72000 * time.Second),
 					OpsDeadline:        10,
 					SkipPrepare:        true,
 					Workers:            3,
