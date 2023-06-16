@@ -134,10 +134,10 @@ func PerfTest(testConfig *common.TestCaseConfiguration, Workqueue *Workqueue, wo
 	}
 	log.Infof("Started %d parallel clients", testConfig.ParallelClients)
 	if testConfig.Timeout != 0 {
-		workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Timeout), true)
+		workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Timeout), true, testConfig.ParallelClients)
 	} else {
 		if testConfig.Runtime != 0 {
-			workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Runtime), false)
+			workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Runtime), false, testConfig.ParallelClients)
 		} else {
 			workUntilOps(Workqueue, workChannel, testConfig.OpsDeadline, testConfig.ParallelClients)
 		}
@@ -173,9 +173,10 @@ func PerfTest(testConfig *common.TestCaseConfiguration, Workqueue *Workqueue, wo
 	return endTime.Sub(startTime)
 }
 
-func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration, breakLoop bool) {
+func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration, breakLoop bool, numberOfWorker int) {
 	timer := time.NewTimer(runtime)
 	for {
+		log.Debugf("The length of work queue: %d", len(*Workqueue.Queue))
 		for _, work := range *Workqueue.Queue {
 			select {
 			case <-timer.C:
@@ -201,7 +202,11 @@ func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyCha
 			log.Debug("Skip to delete preparation re-run finished")
 		}
 		if breakLoop {
-			break
+			log.Debug("Reached limit of work ops... waiting for workers to finish")
+			for worker := 0; worker < numberOfWorker; worker++ {
+				workChannel <- &Stopper{}
+			}
+			return
 		}
 	}
 }
