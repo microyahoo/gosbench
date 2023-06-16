@@ -133,10 +133,14 @@ func PerfTest(testConfig *common.TestCaseConfiguration, Workqueue *Workqueue, wo
 		go DoWork(workChannel, notifyChan, wg)
 	}
 	log.Infof("Started %d parallel clients", testConfig.ParallelClients)
-	if testConfig.Runtime != 0 {
-		workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Runtime))
+	if testConfig.Timeout != 0 {
+		workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Timeout), true)
 	} else {
-		workUntilOps(Workqueue, workChannel, testConfig.OpsDeadline, testConfig.ParallelClients)
+		if testConfig.Runtime != 0 {
+			workUntilTimeout(Workqueue, workChannel, notifyChan, time.Duration(testConfig.Runtime), false)
+		} else {
+			workUntilOps(Workqueue, workChannel, testConfig.OpsDeadline, testConfig.ParallelClients)
+		}
 	}
 	// Wait for all the goroutines to finish
 	wg.Wait()
@@ -169,7 +173,7 @@ func PerfTest(testConfig *common.TestCaseConfiguration, Workqueue *Workqueue, wo
 	return endTime.Sub(startTime)
 }
 
-func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration) {
+func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration, breakLoop bool) {
 	timer := time.NewTimer(runtime)
 	for {
 		for _, work := range *Workqueue.Queue {
@@ -195,6 +199,9 @@ func workUntilTimeout(Workqueue *Workqueue, workChannel chan WorkItem, notifyCha
 			}
 		} else {
 			log.Debug("Skip to delete preparation re-run finished")
+		}
+		if breakLoop {
+			break
 		}
 	}
 }

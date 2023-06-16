@@ -65,6 +65,7 @@ type TestCaseConfiguration struct {
 	BucketPrefix       string    `yaml:"bucket_prefix" json:"bucket_prefix"`
 	ObjectPrefix       string    `yaml:"object_prefix" json:"object_prefix"`
 	Runtime            Duration  `yaml:"stop_with_runtime" json:"stop_with_runtime"`
+	Timeout            Duration  `yaml:"timeout" json:"timeout"`
 	OpsDeadline        uint64    `yaml:"stop_with_ops" json:"stop_with_ops"`
 	Workers            int       `yaml:"workers" json:"workers"`
 	WorkerShareBuckets bool      `yaml:"workers_share_buckets" json:"workers_share_buckets"`
@@ -135,8 +136,8 @@ func CheckConfig(config *Testconf) {
 }
 
 func checkTestCase(testcase *TestCaseConfiguration) error {
-	if testcase.Runtime == 0 && testcase.OpsDeadline == 0 {
-		return fmt.Errorf("Either stop_with_runtime or stop_with_ops needs to be set")
+	if testcase.Runtime == 0 && testcase.Timeout == 0 && testcase.OpsDeadline == 0 {
+		return fmt.Errorf("Either timeout, stop_with_runtime or stop_with_ops needs to be set")
 	}
 	if testcase.ReadWeight == 0 && testcase.WriteWeight == 0 && testcase.ListWeight == 0 && testcase.DeleteWeight == 0 && testcase.ExistingReadWeight == 0 {
 		return fmt.Errorf("At least one weight needs to be set - Read / Write / List / Delete")
