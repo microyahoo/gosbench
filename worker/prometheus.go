@@ -91,7 +91,8 @@ func init() {
 	}
 }
 
-func getCurrentPromValues(testName string) common.BenchmarkResult {
+func (w *Worker) getCurrentPromValues() common.BenchmarkResult {
+	testName := w.config.Test.Name
 	benchResult := common.BenchmarkResult{
 		TestName: testName,
 	}

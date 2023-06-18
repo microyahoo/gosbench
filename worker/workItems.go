@@ -222,7 +222,7 @@ func (op *Stopper) Clean() error {
 
 // DoWork processes the workitems in the workChannel until
 // either the time runs out or a stopper is found
-func DoWork(workChannel <-chan WorkItem, notifyChan <-chan struct{}, wg *sync.WaitGroup) {
+func (w *Worker) DoWork(workChannel <-chan WorkItem, notifyChan <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		select {
@@ -235,7 +235,7 @@ func DoWork(workChannel <-chan WorkItem, notifyChan <-chan struct{}, wg *sync.Wa
 				log.Debug("Found the end of the work Queue - stopping")
 				return
 			}
-			err := work.Do(config.Test)
+			err := work.Do(w.config.Test)
 			if err != nil {
 				log.WithError(err).Error("Issues when performing work - ignoring")
 			}
