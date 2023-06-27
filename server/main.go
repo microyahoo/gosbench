@@ -45,6 +45,10 @@ var serverPort int
 var readyWorkers chan *net.Conn
 var debug, trace bool
 
+type Server struct {
+	config *common.Testconf
+}
+
 func main() {
 	config := common.LoadConfigFromFile(configFileLocation)
 	common.CheckConfig(config)
@@ -60,7 +64,10 @@ func main() {
 	}
 	defer l.Close()
 	log.Info("Ready to accept connections")
-	go scheduleTests(config)
+	server := &Server{
+		config: config,
+	}
+	go server.scheduleTests()
 	for {
 		// Wait for a connection.
 		conn, err := l.Accept()
@@ -91,8 +98,8 @@ func main() {
 	}
 }
 
-func scheduleTests(config *common.Testconf) {
-	for testNumber, test := range config.Tests {
+func (s *Server) scheduleTests() {
+	for testNumber, test := range s.config.Tests {
 		doneChannel := make(chan bool, test.Workers)
 		resultChannel := make(chan common.BenchmarkResult, test.Workers)
 		continueWorkers := make(chan bool, test.Workers)
@@ -102,7 +109,7 @@ func scheduleTests(config *common.Testconf) {
 		for worker := 0; worker < test.Workers; worker++ {
 			workerConfig := &common.WorkerConf{
 				Test:     test,
-				S3Config: config.S3Config[worker%len(config.S3Config)],
+				S3Config: s.config.S3Config[worker%len(s.config.S3Config)],
 				WorkerID: fmt.Sprintf("w%d", worker),
 			}
 			workerConnection := <-readyWorkers
