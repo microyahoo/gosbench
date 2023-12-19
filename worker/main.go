@@ -289,7 +289,7 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 		if err != nil {
 			log.WithError(err).WithField("bucket", bucketName).Error("Error when creating bucket")
 		}
-		var preExistingObjects *s3.ListObjectsOutput
+		var preExistingObjects *s3.ListObjectsV2Output
 		var preExistingObjectCount uint64
 		if testConfig.ExistingReadWeight > 0 {
 			preExistingObjects, err = listObjects(housekeepingSvc, "", bucketName)
