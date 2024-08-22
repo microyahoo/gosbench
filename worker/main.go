@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/mulbc/gosbench/common"
 	log "github.com/sirupsen/logrus"
 )
@@ -289,14 +289,14 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 		if err != nil {
 			log.WithError(err).WithField("bucket", bucketName).Error("Error when creating bucket")
 		}
-		var preExistingObjects *s3.ListObjectsV2Output
+		var preExistingObjects []types.Object
 		var preExistingObjectCount uint64
 		if testConfig.ExistingReadWeight > 0 {
 			preExistingObjects, err = listObjects(housekeepingSvc, "", bucketName)
 			if err != nil {
 				log.WithError(err).Fatalf("Problems when listing contents of bucket %s", bucketName)
 			}
-			preExistingObjectCount = uint64(len(preExistingObjects.Contents))
+			preExistingObjectCount = uint64(len(preExistingObjects))
 			log.Debugf("Found %d objects in bucket %s", preExistingObjectCount, bucketName)
 
 			if preExistingObjectCount <= 0 {
