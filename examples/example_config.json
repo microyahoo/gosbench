@@ -1,5 +1,5 @@
 {
-    "s3_config": [
+    "s3_configs": [
         { 
             "access_key": "abc", "secret_key": "as", "region": "eu-central-1", "endpoint": "https://my.rgw.endpoint:8080", 
             "skipSSLverify": false 

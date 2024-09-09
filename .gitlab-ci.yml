@@ -13,9 +13,9 @@ variables:
   GIT_STRATEGY: clone
 
 unit-test:
-  image: reg.deeproute.ai/deeproute-public/cloud-storage:v1.0.4
+  image: reg.deeproute.ai/deeproute-public/go/golang:1.22
   tags:
-    - build
+    - compilation
   stage: unit-test
   script:
     - make test

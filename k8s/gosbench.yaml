@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 data:
   config.yml: |-
-    s3_config:
+    s3_configs:
       - access_key: 8MKI7yLHF2L5Z07rabTZ
         secret_key: Y7quDBT3az/emhiDOiQR18hZLKzFaKUjOU4YyPCP
         region: eu-central-1

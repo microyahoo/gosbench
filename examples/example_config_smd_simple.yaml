@@ -1,5 +1,5 @@
 ---
-s3_config:
+s3_configs:
   - access_key: testy
     secret_key: testy
     region: us-east-1

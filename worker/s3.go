@@ -12,20 +12,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/smithy-go"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/mulbc/gosbench/common"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats/view"
+
+	"github.com/mulbc/gosbench/common"
 )
 
-var svc, housekeepingSvc *s3.Client
-var ctx context.Context
-var hc *http.Client
+var (
+	svc, housekeepingSvc *s3.Client
+	ctx                  context.Context
+	hc                   *http.Client
+)
 
 func init() {
 	if err := view.Register([]*view.View{
@@ -107,15 +109,16 @@ func InitS3(config common.S3Configuration) {
 	log.Debug("S3 Init done")
 }
 
-func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
+func putObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
 	bucket := op.Bucket
 	objectName := op.ObjectName
 	objectContent := bytes.NewReader(generateRandomBytes(op.ObjectSize))
 	if conf.WriteOption != nil {
+		// https://aws.github.io/aws-sdk-go-v2/docs/sdk-utilities/s3/
 		// Create an uploader with S3 client and custom options
-		uploader := s3manager.NewUploaderWithClient(service)
+		uploader := s3manager.NewUploader(service)
 
-		_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 			Bucket: &bucket,
 			Key:    &objectName,
 			Body:   objectContent,
@@ -125,14 +128,14 @@ func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 			d.PartSize = conf.WriteOption.ChunkSize
 		})
 	} else {
-		_, err = service.PutObjectWithContext(ctx, &s3.PutObjectInput{
+		_, err = service.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: &bucket,
 			Key:    &objectName,
 			Body:   objectContent,
 		})
 	}
 	if err != nil {
-		log.WithError(err).WithField("object", objectName).WithField("bucket", bucket).Errorf("Failed to upload object,")
+		log.WithError(err).WithField("object", objectName).WithField("bucket", bucket).Errorf("Failed to upload object")
 		return err
 	}
 
@@ -140,29 +143,6 @@ func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 
 	return err
 }
-
-// func getObjectProperties(service *s3.S3, objectName string, bucket string) {
-// 	service.ListObjects(&s3.ListObjectsInput{
-// 		Bucket: &bucket,
-// 	})
-// 	result, err := service.GetObjectWithContext(ctx, &s3.GetObjectInput{
-// 		Bucket: &bucket,
-// 		Key:    &objectName,
-// 	})
-// 	if err != nil {
-// 		// Cast err to awserr.Error to handle specific error codes.
-// 		aerr, ok := err.(awserr.Error)
-// 		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-// 			log.WithError(aerr).Errorf("Could not find object %s in bucket %s when querying properties", objectName, bucket)
-// 		}
-// 	}
-
-// 	// Make sure to close the body when done with it for S3 GetObject APIs or
-// 	// will leak connections.
-// 	defer result.Body.Close()
-
-// 	log.Debugf("Object Properties:\n%+v", result)
-// }
 
 func listObjects(service *s3.Client, prefix string, bucket string) ([]types.Object, error) {
 	var bucketContents []types.Object
@@ -181,16 +161,18 @@ func listObjects(service *s3.Client, prefix string, bucket string) ([]types.Obje
 	return bucketContents, nil
 }
 
-func headObjects(service *s3.S3, objectName string, bucket string, noFoundLog bool) (*s3.HeadObjectOutput, error) {
-	result, err := service.HeadObject(&s3.HeadObjectInput{
+func headObject(service *s3.Client, objectName string, bucket string) (*s3.HeadObjectOutput, error) {
+	result, err := service.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: &bucket,
 		Key:    &objectName,
 	})
-	if err != nil && noFoundLog {
+	if err != nil {
 		// Cast err to awserr.Error to handle specific error codes.
-		aerr, ok := err.(awserr.Error)
-		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-			log.WithError(aerr).Errorf("Could not find prefix %s in bucket %s when querying properties", objectName, bucket)
+		// https://github.com/aws/aws-sdk-go-v2/issues/2084
+		// https://github.com/aws/aws-sdk-go-v2/issues/1110
+		var oe smithy.APIError
+		if errors.As(err, &oe) && oe.ErrorCode() == "NotFound" {
+			log.WithError(oe).Errorf("Could not find prefix %s in bucket %s when querying properties", objectName, bucket)
 		}
 	}
 	return result, err
@@ -203,7 +185,7 @@ func (d *discarder) WriteAt(p []byte, off int64) (n int, err error) {
 	return len(p), nil
 }
 
-func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
+func getObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
 	var (
 		bucket     = op.Bucket
 		objectName = op.ObjectName
@@ -212,9 +194,9 @@ func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 	)
 	if conf.ReadOption != nil {
 		// Create a downloader with the session and custom options
-		downloader := s3manager.NewDownloaderWithClient(service)
-		_, err = downloader.DownloadWithContext(ctx, &discarder{}, &s3.GetObjectInput{
-			Bucket: &bucket,
+		downloader := s3manager.NewDownloader(service)
+		_, err = downloader.Download(ctx, &discarder{}, &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
 			Key:    &objectName,
 		}, func(d *s3manager.Downloader) {
 			d.Concurrency = conf.ReadOption.Concurrency
@@ -222,7 +204,7 @@ func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 		})
 	} else {
 		// Remove the allocation of buffer
-		result, err := svc.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		result, err := svc.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: &bucket,
 			Key:    &objectName,
 		})

@@ -82,15 +82,15 @@ type TestCaseConfiguration struct {
 }
 
 type S3Option struct {
-	MaxUploadParts int    `yaml:"max_upload_parts" json:"max_upload_parts"` // only for write
+	MaxUploadParts int32  `yaml:"max_upload_parts" json:"max_upload_parts"` // only for write
 	Concurrency    int    `yaml:"concurrency" json:"concurrency"`
 	ChunkSize      int64  `yaml:"chunk_size" json:"chunk_size"`
 	Unit           string `yaml:"unit" json:"unit"`
 }
 
-// Testconf contains all the information necessary to set up a distributed test
-type Testconf struct {
-	S3Config      []*S3Configuration       `yaml:"s3_config" json:"s3_config"`
+// TestConf contains all the information necessary to set up a distributed test
+type TestConf struct {
+	S3Configs     []*S3Configuration       `yaml:"s3_configs" json:"s3_configs"`
 	GrafanaConfig *GrafanaConfiguration    `yaml:"grafana_config" json:"grafana_config"`
 	Tests         []*TestCaseConfiguration `yaml:"tests" json:"tests"`
 }
@@ -125,7 +125,7 @@ type WorkerMessage struct {
 }
 
 // CheckConfig checks the global config
-func CheckConfig(config *Testconf) {
+func CheckConfig(config *TestConf) {
 	for _, testcase := range config.Tests {
 		// log.Debugf("Checking testcase with prefix %s", testcase.BucketPrefix)
 		err := checkTestCase(testcase)
@@ -228,7 +228,7 @@ func EvaluateDistribution(min uint64, max uint64, lastNumber *uint64, increment 
 	case "constant":
 		return min
 	case "random":
-		rand.Seed(time.Now().UnixNano())
+		rand.New(rand.NewSource(time.Now().UnixNano()))
 		validSize := max - min
 		return ((rand.Uint64() % validSize) + min)
 	case "sequential":
@@ -299,12 +299,12 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 var ReadFile = os.ReadFile
 
-func LoadConfigFromFile(configFile string) *Testconf {
+func LoadConfigFromFile(configFile string) *TestConf {
 	configFileContent, err := ReadFile(configFile)
 	if err != nil {
 		log.WithError(err).Fatalf("Error reading config file:")
 	}
-	var config Testconf
+	var config TestConf
 
 	if strings.HasSuffix(configFile, ".yaml") || strings.HasSuffix(configFile, ".yml") {
 		err = yaml.Unmarshal(configFileContent, &config)

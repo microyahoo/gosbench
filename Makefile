@@ -2,6 +2,9 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 UNIX_DATE := $(shell date -u +"%s")
 VCS_REF := $(shell git rev-parse HEAD)
 
+build-local:
+	@go build -o ./bin/gosbench-server ./server
+	@go build -o ./bin/gosbench-worker ./worker
 build:
 	docker pull golang:alpine
 	docker build --tag quay.io/mulbc/gosbench-server:$(VCS_REF) --build-arg "TYPE=server" --build-arg "BUILD_DATE=$(BUILD_DATE)" --build-arg "VCS_REF=$(VCS_REF)" .
