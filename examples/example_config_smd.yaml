@@ -66,8 +66,7 @@ tests:
     object_prefix: obj-
     # End after a set amount of time
     # Runtime in time.Duration - do not forget the unit please
-    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times, which will be ignored if timeout has set
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
+    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
     # End after a set amount of operations (per worker)
     # stop_with_ops: 10
     # Number of s3 performance test servers to run in parallel
@@ -102,8 +101,7 @@ tests:
     bucket_prefix: gosbench-prefix-
     object_prefix: obj-
     # stop_with_ops: 5
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
-    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times, which will be ignored if timeout has set
+    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
     workers: 6
     workers_share_buckets: True
     parallel_clients: 64
@@ -129,7 +127,6 @@ tests:
     bucket_prefix: gosbench-prefix-
     object_prefix: obj-
     # stop_with_ops: 10
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
     skip_prepare: true
     workers: 6
     workers_share_buckets: True
@@ -162,8 +159,7 @@ tests:
     object_prefix: obj-64k-
     # End after a set amount of time
     # Runtime in time.Duration - do not forget the unit please
-    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times, which will be ignored if timeout has set
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
+    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
     # End after a set amount of operations (per worker)
     # stop_with_ops: 10
     # Number of s3 performance test servers to run in parallel
@@ -198,7 +194,6 @@ tests:
     bucket_prefix: gosbench-prefix-64k-
     object_prefix: obj-64k-
     # stop_with_ops: 5
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
     workers: 6
     workers_share_buckets: True
     parallel_clients: 64
@@ -224,7 +219,6 @@ tests:
     bucket_prefix: gosbench-prefix-64k-
     object_prefix: obj-64k-
     # stop_with_ops: 10
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
     skip_prepare: true
     workers: 6
     workers_share_buckets: True
@@ -257,8 +251,7 @@ tests:
     object_prefix: obj-4M-
     # End after a set amount of time
     # Runtime in time.Duration - do not forget the unit please
-    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times, which will be ignored if timeout has set
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
+    # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
     # End after a set amount of operations (per worker)
     # stop_with_ops: 10
     # Number of s3 performance test servers to run in parallel
@@ -293,7 +286,6 @@ tests:
     bucket_prefix: gosbench-prefix-4M-
     object_prefix: obj-4M-
     # stop_with_ops: 5
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
     workers: 6
     workers_share_buckets: True
     parallel_clients: 64
@@ -319,7 +311,6 @@ tests:
     bucket_prefix: gosbench-prefix-4M-
     object_prefix: obj-4M-
     # stop_with_ops: 10
-    timeout: 3600000s # The maximum timeout for traversing one round of workqueue
     skip_prepare: true
     workers: 6
     workers_share_buckets: True

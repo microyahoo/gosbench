@@ -112,7 +112,7 @@ func InitS3(config common.S3Configuration) {
 func putObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
 	bucket := op.Bucket
 	objectName := op.ObjectName
-	objectContent := bytes.NewReader(generateRandomBytes(op.ObjectSize))
+	objectContent := bytes.NewReader(generateRandomBytes(op.TestName, op.ObjectSize))
 	if conf.WriteOption != nil {
 		// https://aws.github.io/aws-sdk-go-v2/docs/sdk-utilities/s3/
 		// Create an uploader with S3 client and custom options
