@@ -1,8 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -54,21 +54,21 @@ type Stopper struct{}
 
 // KV is a simple key-value struct
 type KV struct {
-	Key   string
+	Key   string // read, existing_read, write, list, delete
 	Value float64
 }
 
-// Workqueue contains the Queue and the valid operation's
+// WorkQueue contains the Queue and the valid operation's
 // values to determine which operation should be done next
 // in order to satisfy the set ratios.
-type Workqueue struct {
+type WorkQueue struct {
 	OperationValues []KV
-	Queue           *[]WorkItem
+	Queue           []WorkItem
 }
 
 // GetNextOperation evaluates the operation values and returns which
 // operation should happen next
-func GetNextOperation(Queue *Workqueue) string {
+func GetNextOperation(Queue *WorkQueue) string {
 	sort.Slice(Queue.OperationValues, func(i, j int) bool {
 		return Queue.OperationValues[i].Value < Queue.OperationValues[j].Value
 	})
@@ -76,7 +76,7 @@ func GetNextOperation(Queue *Workqueue) string {
 }
 
 // IncreaseOperationValue increases the given operation's value by the set amount
-func IncreaseOperationValue(operation string, value float64, Queue *Workqueue) error {
+func IncreaseOperationValue(operation string, value float64, Queue *WorkQueue) error {
 	for i := range Queue.OperationValues {
 		if Queue.OperationValues[i].Key == operation {
 			Queue.OperationValues[i].Value += value
@@ -111,7 +111,7 @@ func (op *ListOperation) Prepare(conf *common.TestCaseConfiguration) error {
 func (op *DeleteOperation) Prepare(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Preparing DeleteOperation")
 	// check whether object is exist or not
-	_, err := headObjects(housekeepingSvc, op.ObjectName, op.Bucket, false)
+	_, err := headObject(housekeepingSvc, op.ObjectName, op.Bucket)
 	// object already exist
 	if err == nil {
 		return nil

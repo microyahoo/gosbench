@@ -1,7 +1,7 @@
 package common
 
 import (
-	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -331,7 +331,7 @@ func Test_loadConfigFromFile(t *testing.T) {
 		}
 	}
 	defer func() {
-		ReadFile = ioutil.ReadFile
+		ReadFile = os.ReadFile
 	}()
 	type args struct {
 		configFileContent []byte
@@ -339,13 +339,13 @@ func Test_loadConfigFromFile(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *Testconf
+		want *TestConf
 	}{
-		{"empty file", args{[]byte{}}, &Testconf{}},
+		{"empty file", args{[]byte{}}, &TestConf{}},
 		{"s3 write option nil", args{[]byte(`tests:
   - name: read-4k
     write_option:
-`)}, &Testconf{
+`)}, &TestConf{
 			Tests: []*TestCaseConfiguration{
 				{
 					Name:        "read-4k",
@@ -358,7 +358,7 @@ func Test_loadConfigFromFile(t *testing.T) {
     write_option:
       max_upload_parts:
       upload_concurrency:
-`)}, &Testconf{
+`)}, &TestConf{
 			Tests: []*TestCaseConfiguration{
 				{
 					Name:        "write-4k",
@@ -369,7 +369,7 @@ func Test_loadConfigFromFile(t *testing.T) {
 		// TODO discover how to handle log.Fatal with logrus here
 		// https://github.com/sirupsen/logrus#fatal-handlers
 		// {"unparsable", args{[]byte(`corrupt!`)}, common.Testconf{}},
-		{"S3Config", args{[]byte(`s3_config:
+		{"S3Config", args{[]byte(`s3_configs:
   - access_key: secretKey
     secret_key: secretSecret
     region: us-east-1
@@ -409,8 +409,8 @@ tests:
       concurrency: 4
       chunk_size: 4
       unit: MB
-`)}, &Testconf{
-			S3Config: []*S3Configuration{
+`)}, &TestConf{
+			S3Configs: []*S3Configuration{
 				{
 					Endpoint:      "http://10.9.8.72:80",
 					AccessKey:     "secretKey",

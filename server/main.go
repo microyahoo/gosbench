@@ -20,7 +20,7 @@ func init() {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 	})
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	flag.StringVar(&configFileLocation, "c", "", "Config file describing test run")
 	flag.IntVar(&serverPort, "p", 2000, "Port on which the server will be available for clients. Default: 2000")
@@ -40,13 +40,15 @@ func init() {
 	}
 }
 
-var configFileLocation string
-var serverPort int
-var readyWorkers chan *net.Conn
-var debug, trace bool
+var (
+	configFileLocation string
+	serverPort         int
+	readyWorkers       chan *net.Conn
+	debug, trace       bool
+)
 
 type Server struct {
-	config *common.Testconf
+	config *common.TestConf
 }
 
 func main() {
@@ -109,7 +111,7 @@ func (s *Server) scheduleTests() {
 		for worker := 0; worker < test.Workers; worker++ {
 			workerConfig := &common.WorkerConf{
 				Test:     test,
-				S3Config: s.config.S3Config[worker%len(s.config.S3Config)],
+				S3Config: s.config.S3Configs[worker%len(s.config.S3Configs)],
 				WorkerID: fmt.Sprintf("w%d", worker),
 			}
 			workerConnection := <-readyWorkers

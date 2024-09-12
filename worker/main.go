@@ -12,20 +12,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/mulbc/gosbench/common"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/mulbc/gosbench/common"
 )
 
-var prometheusPort int
-var debug, trace bool
+var (
+	prometheusPort int
+	debug, trace   bool
+)
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 	})
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
 func main() {
@@ -48,9 +51,7 @@ func main() {
 	}
 
 	worker := &Worker{
-		Workqueue: &Workqueue{
-			Queue: &[]WorkItem{},
-		},
+		workQueue: &WorkQueue{},
 	}
 	for {
 		err := worker.connectToServer(serverAddress)
@@ -62,8 +63,8 @@ func main() {
 }
 
 type Worker struct {
-	Workqueue       *Workqueue
-	ParallelClients int
+	workQueue       *WorkQueue
+	parallelClients int
 	config          common.WorkerConf
 }
 
@@ -91,14 +92,14 @@ func (w *Worker) connectToServer(serverAddress string) error {
 		case "init":
 			config := *response.Config
 			w.config = config
-			w.ParallelClients = w.config.Test.ParallelClients
+			w.parallelClients = w.config.Test.ParallelClients
 			log.Info("Got config from server - starting preparations now")
 
 			InitS3(*config.S3Config)
 			w.fillWorkqueue(config.WorkerID, config.Test.WorkerShareBuckets)
 
 			if !config.Test.SkipPrepare {
-				for _, work := range *w.Workqueue.Queue {
+				for _, work := range w.workQueue.Queue {
 					err = work.Prepare(config.Test)
 					if err != nil {
 						log.WithError(err).Error("Error during work preparation - ignoring")
@@ -108,7 +109,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			log.Info("Preparations finished - waiting on server to start work")
 			_ = encoder.Encode(common.WorkerMessage{Message: "preparations done"})
 		case "start work":
-			if w.config == (common.WorkerConf{}) || len(*w.Workqueue.Queue) == 0 {
+			if w.config == (common.WorkerConf{}) || len(w.workQueue.Queue) == 0 {
 				log.Fatal("Was instructed to start work - but the preparation step is incomplete - reconnecting")
 				return nil
 			}
@@ -132,7 +133,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 func (w *Worker) PerfTest() time.Duration {
 	workerID := w.config.WorkerID
 	testConfig := w.config.Test
-	workChannel := make(chan WorkItem, len(*w.Workqueue.Queue))
+	workChannel := make(chan WorkItem, len(w.workQueue.Queue))
 	notifyChan := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	wg.Add(testConfig.ParallelClients)
@@ -161,7 +162,7 @@ func (w *Worker) PerfTest() time.Duration {
 
 	if testConfig.CleanAfter {
 		log.Info("Housekeeping started")
-		for _, work := range *w.Workqueue.Queue {
+		for _, work := range w.workQueue.Queue {
 			err := work.Clean()
 			if err != nil {
 				log.WithError(err).Error("Error during cleanup - ignoring")
@@ -187,8 +188,8 @@ func (w *Worker) PerfTest() time.Duration {
 func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration, breakLoop bool) {
 	timer := time.NewTimer(runtime)
 	for {
-		log.Debugf("The length of work queue: %d", len(*w.Workqueue.Queue))
-		for _, work := range *w.Workqueue.Queue {
+		log.Debugf("The length of work queue: %d", len(w.workQueue.Queue))
+		for _, work := range w.workQueue.Queue {
 			select {
 			case <-timer.C:
 				log.Debug("Reached Runtime end")
@@ -198,7 +199,7 @@ func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- s
 			}
 		}
 		if !w.config.Test.SkipPrepare {
-			for _, work := range *w.Workqueue.Queue {
+			for _, work := range w.workQueue.Queue {
 				switch work.(type) {
 				case *DeleteOperation:
 					log.Debug("Re-Running Work preparation for delete job started")
@@ -214,7 +215,7 @@ func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- s
 		}
 		if breakLoop {
 			log.Debug("Reached limit of work ops... waiting for workers to finish")
-			for worker := 0; worker < w.ParallelClients; worker++ {
+			for worker := 0; worker < w.parallelClients; worker++ {
 				workChannel <- &Stopper{}
 			}
 			return
@@ -225,10 +226,10 @@ func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- s
 func (w *Worker) workUntilOps(workChannel chan WorkItem, maxOps uint64) {
 	currentOps := uint64(0)
 	for {
-		for _, work := range *w.Workqueue.Queue {
+		for _, work := range w.workQueue.Queue {
 			if currentOps >= maxOps {
 				log.Debug("Reached OpsDeadline ... waiting for workers to finish")
-				for worker := 0; worker < w.ParallelClients; worker++ {
+				for worker := 0; worker < w.parallelClients; worker++ {
 					workChannel <- &Stopper{}
 				}
 				return
@@ -238,7 +239,7 @@ func (w *Worker) workUntilOps(workChannel chan WorkItem, maxOps uint64) {
 		}
 
 		remainOps := maxOps - currentOps
-		for _, work := range *w.Workqueue.Queue {
+		for _, work := range w.workQueue.Queue {
 			if remainOps <= 0 {
 				break
 			}
@@ -263,19 +264,19 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 	testConfig := w.config.Test
 
 	if testConfig.ReadWeight > 0 {
-		w.Workqueue.OperationValues = append(w.Workqueue.OperationValues, KV{Key: "read"})
+		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "read"})
 	}
 	if testConfig.ExistingReadWeight > 0 {
-		w.Workqueue.OperationValues = append(w.Workqueue.OperationValues, KV{Key: "existing_read"})
+		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "existing_read"})
 	}
 	if testConfig.WriteWeight > 0 {
-		w.Workqueue.OperationValues = append(w.Workqueue.OperationValues, KV{Key: "write"})
+		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "write"})
 	}
 	if testConfig.ListWeight > 0 {
-		w.Workqueue.OperationValues = append(w.Workqueue.OperationValues, KV{Key: "list"})
+		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "list"})
 	}
 	if testConfig.DeleteWeight > 0 {
-		w.Workqueue.OperationValues = append(w.Workqueue.OperationValues, KV{Key: "delete"})
+		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "delete"})
 	}
 
 	for bucketn := testConfig.Buckets.NumberMin; bucketn <= testConfig.Buckets.NumberMax; bucketn++ {
@@ -289,14 +290,14 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 		if err != nil {
 			log.WithError(err).WithField("bucket", bucketName).Error("Error when creating bucket")
 		}
-		var preExistingObjects *s3.ListObjectsOutput
+		var preExistingObjects []types.Object
 		var preExistingObjectCount uint64
 		if testConfig.ExistingReadWeight > 0 {
 			preExistingObjects, err = listObjects(housekeepingSvc, "", bucketName)
 			if err != nil {
 				log.WithError(err).Fatalf("Problems when listing contents of bucket %s", bucketName)
 			}
-			preExistingObjectCount = uint64(len(preExistingObjects.Contents))
+			preExistingObjectCount = uint64(len(preExistingObjects))
 			log.Debugf("Found %d objects in bucket %s", preExistingObjectCount, bucketName)
 
 			if preExistingObjectCount <= 0 {
@@ -309,10 +310,10 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 			object := common.EvaluateDistribution(testConfig.Objects.NumberMin, testConfig.Objects.NumberMax, &testConfig.Objects.NumberLast, 1, testConfig.Objects.NumberDistribution)
 			objectSize := common.EvaluateDistribution(testConfig.Objects.SizeMin, testConfig.Objects.SizeMax, &testConfig.Objects.SizeLast, 1, testConfig.Objects.SizeDistribution)
 
-			nextOp := GetNextOperation(w.Workqueue)
+			nextOp := GetNextOperation(w.workQueue)
 			switch nextOp {
 			case "read":
-				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ReadWeight), w.Workqueue)
+				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ReadWeight), w.workQueue)
 				if err != nil {
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
@@ -325,9 +326,9 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 					},
 					WorksOnPreexistingObject: false,
 				}
-				*w.Workqueue.Queue = append(*w.Workqueue.Queue, new)
+				w.workQueue.Queue = append(w.workQueue.Queue, new)
 			case "existing_read":
-				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ExistingReadWeight), w.Workqueue)
+				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ExistingReadWeight), w.workQueue)
 				if err != nil {
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
@@ -335,14 +336,14 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 					BaseOperation: &BaseOperation{
 						TestName:   testConfig.Name,
 						Bucket:     bucketName,
-						ObjectName: *preExistingObjects.Contents[object%preExistingObjectCount].Key,
-						ObjectSize: uint64(*preExistingObjects.Contents[object%preExistingObjectCount].Size),
+						ObjectName: *preExistingObjects[object%preExistingObjectCount].Key,
+						ObjectSize: uint64(*preExistingObjects[object%preExistingObjectCount].Size),
 					},
 					WorksOnPreexistingObject: true,
 				}
-				*w.Workqueue.Queue = append(*w.Workqueue.Queue, new)
+				w.workQueue.Queue = append(w.workQueue.Queue, new)
 			case "write":
-				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.WriteWeight), w.Workqueue)
+				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.WriteWeight), w.workQueue)
 				if err != nil {
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
@@ -354,9 +355,9 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 						ObjectSize: objectSize,
 					},
 				}
-				*w.Workqueue.Queue = append(*w.Workqueue.Queue, new)
+				w.workQueue.Queue = append(w.workQueue.Queue, new)
 			case "list":
-				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ListWeight), w.Workqueue)
+				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ListWeight), w.workQueue)
 				if err != nil {
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
@@ -368,9 +369,9 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 						ObjectSize: objectSize,
 					},
 				}
-				*w.Workqueue.Queue = append(*w.Workqueue.Queue, new)
+				w.workQueue.Queue = append(w.workQueue.Queue, new)
 			case "delete":
-				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.DeleteWeight), w.Workqueue)
+				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.DeleteWeight), w.workQueue)
 				if err != nil {
 					log.WithError(err).Error("Could not increase operational Value - ignoring")
 				}
@@ -382,7 +383,7 @@ func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
 						ObjectSize: objectSize,
 					},
 				}
-				*w.Workqueue.Queue = append(*w.Workqueue.Queue, new)
+				w.workQueue.Queue = append(w.workQueue.Queue, new)
 			}
 		}
 	}

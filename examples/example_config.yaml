@@ -1,6 +1,6 @@
 ---
 
-s3_config:
+s3_configs:
   - access_key: abc
     secret_key: as
     region: eu-central-1

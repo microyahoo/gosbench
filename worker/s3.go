@@ -4,27 +4,30 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	s3config "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/mulbc/gosbench/common"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats/view"
+
+	"github.com/mulbc/gosbench/common"
 )
 
-var svc, housekeepingSvc *s3.S3
-var ctx context.Context
-var hc *http.Client
+var (
+	svc, housekeepingSvc *s3.Client
+	ctx                  context.Context
+	hc                   *http.Client
+)
 
 func init() {
 	if err := view.Register([]*view.View{
@@ -64,47 +67,58 @@ func InitS3(config common.S3Configuration) {
 		Transport: tr2,
 	}
 
-	sess := session.Must(session.NewSession(&aws.Config{
-		HTTPClient: hc,
-		// TODO Also set the remaining S3 connection details...
-		Region:           &config.Region,
-		Credentials:      credentials.NewStaticCredentials(config.AccessKey, config.SecretKey, ""),
-		Endpoint:         &config.Endpoint,
-		S3ForcePathStyle: aws.Bool(true),
-	}))
+	// TODO Create a context with a timeout - we already use this context in all S3 calls
+	// Usually this shouldn't be a problem ;)
+	ctx = context.Background()
+
+	cfg, err := s3config.LoadDefaultConfig(ctx,
+		s3config.WithHTTPClient(hc),
+		s3config.WithRegion(config.Region),
+		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(config.AccessKey, config.SecretKey, "")),
+	)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to build S3 config")
+	}
 	// Use this Session to do things that are hidden from the performance monitoring
-	housekeepingSess := session.Must(session.NewSession(&aws.Config{
-		HTTPClient: &http.Client{Transport: tr},
-		// TODO Also set the remaining S3 connection details...
-		Region:           &config.Region,
-		Credentials:      credentials.NewStaticCredentials(config.AccessKey, config.SecretKey, ""),
-		Endpoint:         &config.Endpoint,
-		S3ForcePathStyle: aws.Bool(true),
-	}))
+	// Setting up the housekeeping S3 client
+	hkhc := &http.Client{
+		Transport: tr,
+	}
+
+	hkCfg, err := s3config.LoadDefaultConfig(ctx,
+		s3config.WithHTTPClient(hkhc),
+		s3config.WithRegion(config.Region),
+		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(config.AccessKey, config.SecretKey, "")),
+	)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to build S3 housekeeping config")
+	}
 
 	// Create a new instance of the service's client with a Session.
 	// Optional aws.Config values can also be provided as variadic arguments
 	// to the New function. This option allows you to provide service
 	// specific configuration.
-	svc = s3.New(sess)
+	svc = s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(config.Endpoint)
+	})
 	// Use this service to do things that are hidden from the performance monitoring
-	housekeepingSvc = s3.New(housekeepingSess)
+	housekeepingSvc = s3.NewFromConfig(hkCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(config.Endpoint)
+	})
 
-	// TODO Create a context with a timeout - we already use this context in all S3 calls
-	// Usually this shouldn't be a problem ;)
-	ctx = context.Background()
 	log.Debug("S3 Init done")
 }
 
-func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
+func putObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
 	bucket := op.Bucket
 	objectName := op.ObjectName
 	objectContent := bytes.NewReader(generateRandomBytes(op.ObjectSize))
 	if conf.WriteOption != nil {
+		// https://aws.github.io/aws-sdk-go-v2/docs/sdk-utilities/s3/
 		// Create an uploader with S3 client and custom options
-		uploader := s3manager.NewUploaderWithClient(service)
+		uploader := s3manager.NewUploader(service)
 
-		_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 			Bucket: &bucket,
 			Key:    &objectName,
 			Body:   objectContent,
@@ -114,70 +128,51 @@ func putObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 			d.PartSize = conf.WriteOption.ChunkSize
 		})
 	} else {
-		_, err = service.PutObjectWithContext(ctx, &s3.PutObjectInput{
+		_, err = service.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: &bucket,
 			Key:    &objectName,
 			Body:   objectContent,
 		})
 	}
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
-			// If the SDK can determine the request or retry delay was canceled
-			// by a context the CanceledErrorCode error code will be returned.
-			log.WithError(aerr).Errorf("Upload canceled due to timeout")
-		} else {
-			log.WithError(err).WithField("object", objectName).WithField("bucket", bucket).Errorf("Failed to upload object,")
-		}
+		log.WithError(err).WithField("object", objectName).WithField("bucket", bucket).Errorf("Failed to upload object")
 		return err
 	}
 
 	log.WithField("bucket", bucket).WithField("key", objectName).Tracef("Upload successful")
+
 	return err
 }
 
-func listObjects(service *s3.S3, prefix string, bucket string) (*s3.ListObjectsOutput, error) {
-	var (
-		marker   *string
-		result   *s3.ListObjectsOutput
-		contents []*s3.Object
-		err      error
-	)
-	for {
-		result, err = service.ListObjects(&s3.ListObjectsInput{
-			Bucket: &bucket,
-			Prefix: &prefix,
-			Marker: marker,
-		})
+func listObjects(service *s3.Client, prefix string, bucket string) ([]types.Object, error) {
+	var bucketContents []types.Object
+	p := s3.NewListObjectsV2Paginator(service, &s3.ListObjectsV2Input{Bucket: aws.String(bucket), Prefix: aws.String(prefix)})
+	for p.HasMorePages() {
+		// Next Page takes a new context for each page retrieval. This is where
+		// you could add timeouts or deadlines.
+		page, err := p.NextPage(ctx)
 		if err != nil {
-			// Cast err to awserr.Error to handle specific error codes.
-			aerr, ok := err.(awserr.Error)
-			if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-				log.WithError(aerr).Errorf("Could not find prefix %s in bucket %s when querying properties", prefix, bucket)
-			}
-			return result, err
+			log.WithError(err).WithField("prefix", prefix).WithField("bucket", bucket).Errorf("Failed to list objects")
+			return nil, err
 		}
-		marker = result.NextMarker
-		contents = append(contents, result.Contents...)
-		if !aws.BoolValue(result.IsTruncated) {
-			break
-		}
+		bucketContents = append(bucketContents, page.Contents...)
 	}
-	if contents != nil {
-		result.Contents = contents
-	}
-	return result, nil
+
+	return bucketContents, nil
 }
 
-func headObjects(service *s3.S3, objectName string, bucket string, noFoundLog bool) (*s3.HeadObjectOutput, error) {
-	result, err := service.HeadObject(&s3.HeadObjectInput{
+func headObject(service *s3.Client, objectName string, bucket string) (*s3.HeadObjectOutput, error) {
+	result, err := service.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: &bucket,
 		Key:    &objectName,
 	})
-	if err != nil && noFoundLog {
+	if err != nil {
 		// Cast err to awserr.Error to handle specific error codes.
-		aerr, ok := err.(awserr.Error)
-		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-			log.WithError(aerr).Errorf("Could not find prefix %s in bucket %s when querying properties", objectName, bucket)
+		// https://github.com/aws/aws-sdk-go-v2/issues/2084
+		// https://github.com/aws/aws-sdk-go-v2/issues/1110
+		var oe smithy.APIError
+		if errors.As(err, &oe) && oe.ErrorCode() == "NotFound" {
+			log.WithError(oe).Errorf("Could not find prefix %s in bucket %s when querying properties", objectName, bucket)
 		}
 	}
 	return result, err
@@ -190,7 +185,7 @@ func (d *discarder) WriteAt(p []byte, off int64) (n int, err error) {
 	return len(p), nil
 }
 
-func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
+func getObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {
 	var (
 		bucket     = op.Bucket
 		objectName = op.ObjectName
@@ -199,9 +194,9 @@ func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 	)
 	if conf.ReadOption != nil {
 		// Create a downloader with the session and custom options
-		downloader := s3manager.NewDownloaderWithClient(service)
-		_, err = downloader.DownloadWithContext(ctx, &discarder{}, &s3.GetObjectInput{
-			Bucket: &bucket,
+		downloader := s3manager.NewDownloader(service)
+		_, err = downloader.Download(ctx, &discarder{}, &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
 			Key:    &objectName,
 		}, func(d *s3manager.Downloader) {
 			d.Concurrency = conf.ReadOption.Concurrency
@@ -209,7 +204,7 @@ func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 		})
 	} else {
 		// Remove the allocation of buffer
-		result, err := svc.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		result, err := svc.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: &bucket,
 			Key:    &objectName,
 		})
@@ -227,50 +222,75 @@ func getObject(service *s3.S3, conf *common.TestCaseConfiguration, op *BaseOpera
 	return nil
 }
 
-func deleteObject(service *s3.S3, objectName string, bucket string) error {
-	_, err := service.DeleteObjectsWithContext(ctx, &s3.DeleteObjectsInput{
+func deleteObject(service *s3.Client, objectName string, bucket string) error {
+	_, err := service.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &bucket,
-		Delete: &s3.Delete{
-			Objects: []*s3.ObjectIdentifier{{Key: &objectName}},
-		},
+		Key:    &objectName,
 	})
 	if err != nil {
-		// Cast err to awserr.Error to handle specific error codes.
-		aerr, ok := err.(awserr.Error)
-		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-			log.WithError(aerr).Errorf("Could not find object %s in bucket %s for deletion", objectName, bucket)
-		}
+		log.WithError(err).Errorf("Could not find object %s in bucket %s for deletion", objectName, bucket)
 	}
 	return err
 }
 
-func createBucket(service *s3.S3, bucket string) error {
-	// TODO do not err when the bucket is already there...
-	_, err := service.CreateBucket(&s3.CreateBucketInput{
+func createBucket(service *s3.Client, bucket string) error {
+	// Do not err when the bucket is already there...
+	_, err := service.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: &bucket,
 	})
 	if err != nil {
-		aerr, _ := err.(awserr.Error)
+		var bne *types.BucketAlreadyExists
 		// Ignore error if bucket already exists
-		if aerr.Code() == s3.ErrCodeBucketAlreadyExists {
+		if errors.As(err, &bne) {
 			return nil
 		}
-		log.WithField("Message", aerr.Message()).WithField("Code", aerr.Code()).Info("Issues when creating bucket")
+		log.WithError(err).Errorf("Issues when creating bucket %s", bucket)
 	}
 	return err
 }
 
-func deleteBucket(service *s3.S3, bucket string) error {
+func deleteBucket(service *s3.Client, bucket string) error {
 	// First delete all objects in the bucket
-	iter := s3manager.NewDeleteListIterator(service, &s3.ListObjectsInput{
-		Bucket: &bucket,
-	})
-
-	if err := s3manager.NewBatchDeleteWithClient(service).Delete(aws.BackgroundContext(), iter); err != nil {
-		return err
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
 	}
+
+	var bucketContents []types.Object
+	isTruncated := true
+	for isTruncated {
+		result, err := service.ListObjectsV2(ctx, input)
+		if err != nil {
+			return err
+		}
+		bucketContents = append(bucketContents, result.Contents...)
+		input.ContinuationToken = result.NextContinuationToken
+		isTruncated = *result.IsTruncated
+	}
+
+	if len(bucketContents) > 0 {
+		var objectsToDelete []types.ObjectIdentifier
+		for _, item := range bucketContents {
+			objectsToDelete = append(objectsToDelete, types.ObjectIdentifier{
+				Key: item.Key,
+			})
+		}
+
+		deleteObjectsInput := &s3.DeleteObjectsInput{
+			Bucket: aws.String(bucket),
+			Delete: &types.Delete{
+				Objects: objectsToDelete,
+				Quiet:   aws.Bool(true),
+			},
+		}
+
+		_, err := svc.DeleteObjects(ctx, deleteObjectsInput)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Then delete the (now empty) bucket itself
-	_, err := service.DeleteBucket(&s3.DeleteBucketInput{
+	_, err := service.DeleteBucket(ctx, &s3.DeleteBucketInput{
 		Bucket: &bucket,
 	})
 	return err
