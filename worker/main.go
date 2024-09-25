@@ -145,17 +145,14 @@ func (w *Worker) PerfTest() time.Duration {
 		go w.DoWork(workChannel, notifyChan, wg)
 	}
 	log.Infof("Started %d parallel clients", testConfig.ParallelClients)
-	if testConfig.Timeout != 0 {
-		w.workUntilTimeout(workChannel, notifyChan, time.Duration(testConfig.Timeout), true)
+	if testConfig.Runtime != 0 {
+		w.workUntilTimeout(workChannel, notifyChan, time.Duration(testConfig.Runtime))
 	} else {
-		if testConfig.Runtime != 0 {
-			w.workUntilTimeout(workChannel, notifyChan, time.Duration(testConfig.Runtime), false)
-		} else {
-			w.workUntilOps(workChannel, testConfig.OpsDeadline)
-		}
+		w.workUntilOps(workChannel, testConfig.OpsDeadline)
 	}
 	// Wait for all the goroutines to finish
 	wg.Wait()
+
 	log.Info("All clients finished")
 	endTime := time.Now().UTC()
 	promTestEnd.WithLabelValues(testConfig.Name).Set(float64(endTime.UnixNano() / int64(1000000)))
@@ -185,7 +182,7 @@ func (w *Worker) PerfTest() time.Duration {
 	return endTime.Sub(startTime)
 }
 
-func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration, breakLoop bool) {
+func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- struct{}, runtime time.Duration) {
 	timer := time.NewTimer(runtime)
 	for {
 		log.Debugf("The length of work queue: %d", len(w.workQueue.Queue))
@@ -212,13 +209,6 @@ func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- s
 			}
 		} else {
 			log.Debug("Skip to delete preparation re-run finished")
-		}
-		if breakLoop {
-			log.Debug("Reached limit of work ops... waiting for workers to finish")
-			for worker := 0; worker < w.parallelClients; worker++ {
-				workChannel <- &Stopper{}
-			}
-			return
 		}
 	}
 }

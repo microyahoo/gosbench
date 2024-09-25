@@ -68,18 +68,18 @@ type WorkQueue struct {
 
 // GetNextOperation evaluates the operation values and returns which
 // operation should happen next
-func GetNextOperation(Queue *WorkQueue) string {
-	sort.Slice(Queue.OperationValues, func(i, j int) bool {
-		return Queue.OperationValues[i].Value < Queue.OperationValues[j].Value
+func GetNextOperation(queue *WorkQueue) string {
+	sort.Slice(queue.OperationValues, func(i, j int) bool {
+		return queue.OperationValues[i].Value < queue.OperationValues[j].Value
 	})
-	return Queue.OperationValues[0].Key
+	return queue.OperationValues[0].Key
 }
 
 // IncreaseOperationValue increases the given operation's value by the set amount
-func IncreaseOperationValue(operation string, value float64, Queue *WorkQueue) error {
-	for i := range Queue.OperationValues {
-		if Queue.OperationValues[i].Key == operation {
-			Queue.OperationValues[i].Value += value
+func IncreaseOperationValue(operation string, value float64, queue *WorkQueue) error {
+	for i := range queue.OperationValues {
+		if queue.OperationValues[i].Key == operation {
+			queue.OperationValues[i].Value += value
 			return nil
 		}
 	}
@@ -243,13 +243,16 @@ func (w *Worker) DoWork(workChannel <-chan WorkItem, notifyChan <-chan struct{},
 	}
 }
 
-func generateRandomBytes(size uint64) []byte {
-	now := time.Now()
+func generateRandomBytes(testName string, size uint64) []byte {
+	start := time.Now()
 	random := make([]byte, size)
 	n, err := rand.Read(random)
 	if err != nil {
 		log.WithError(err).Fatal("I had issues getting my random bytes initialized")
 	}
-	log.Tracef("Generated %d random bytes in %v", n, time.Since(now))
+	duration := time.Since(start)
+	promGenBytesLatency.WithLabelValues(testName).Observe(float64(duration.Milliseconds()))
+	promGenBytesSize.WithLabelValues(testName).Set(float64(n))
+
 	return random
 }

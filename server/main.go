@@ -145,6 +145,7 @@ func (s *Server) scheduleTests() {
 			WithField("Total Bytes", benchResult.Bytes).
 			WithField("Average BW in Byte/s", benchResult.Bandwidth).
 			WithField("Average latency in ms", benchResult.LatencyAvg).
+			WithField("Gen Bytes Average latency in ms", benchResult.GenBytesLatencyAvg).
 			WithField("Test runtime on server", benchResult.Duration).
 			Infof("PERF RESULTS")
 		writeResultToCSV(benchResult)
@@ -194,15 +195,19 @@ func sumBenchmarkResults(results []common.BenchmarkResult) common.BenchmarkResul
 	sum := common.BenchmarkResult{}
 	bandwidthAverages := float64(0)
 	latencyAverages := float64(0)
+	genBytesLatencyAverages := float64(0)
 	for _, result := range results {
 		sum.Bytes += result.Bytes
 		sum.Operations += result.Operations
 		latencyAverages += result.LatencyAvg
+		genBytesLatencyAverages += result.GenBytesLatencyAvg
 		bandwidthAverages += result.Bandwidth
 	}
 	sum.LatencyAvg = latencyAverages / float64(len(results))
+	sum.GenBytesLatencyAvg = genBytesLatencyAverages / float64(len(results))
 	sum.TestName = results[0].TestName
 	sum.Bandwidth = bandwidthAverages
+
 	return sum
 }
 
@@ -223,6 +228,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 			"Total Bytes",
 			"Average Bandwidth in Bytes/s",
 			"Average Latency in ms",
+			"Gen Bytes Average Latency in ms",
 			"Test duration seen by server in seconds",
 		})
 		if err != nil {
@@ -237,6 +243,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 		fmt.Sprintf("%.0f", benchResult.Bytes),
 		fmt.Sprintf("%f", benchResult.Bandwidth),
 		fmt.Sprintf("%f", benchResult.LatencyAvg),
+		fmt.Sprintf("%f", benchResult.GenBytesLatencyAvg),
 		fmt.Sprintf("%f", benchResult.Duration.Seconds()),
 	})
 	if err != nil {
