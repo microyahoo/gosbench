@@ -79,6 +79,7 @@ type TestCaseConfiguration struct {
 	DeleteWeight       int       `yaml:"delete_weight" json:"delete_weight"`
 	WriteOption        *S3Option `yaml:"write_option" json:"write_option"`
 	ReadOption         *S3Option `yaml:"read_option" json:"read_option"`
+	PayloadGenerator   string    `yaml:"payload_generator" json:"payload_generator"` // empty or random
 }
 
 type S3Option struct {
@@ -137,6 +138,9 @@ func CheckConfig(config *TestConf) {
 }
 
 func checkTestCase(testcase *TestCaseConfiguration) error {
+	if testcase.PayloadGenerator != "" && testcase.PayloadGenerator != "random" && testcase.PayloadGenerator != "empty" {
+		return fmt.Errorf("Either random or empty needs to be set for payload generator")
+	}
 	if testcase.Runtime == 0 && testcase.OpsDeadline == 0 && !testcase.OneShot {
 		return fmt.Errorf("Either stop_with_runtime, stop_with_ops or oneshot needs to be set")
 	}

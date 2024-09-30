@@ -141,8 +141,6 @@ func (s *Server) scheduleTests() {
 			// Will halt until all workers are done with preparations
 			<-doneChannel
 		}
-		// Add sleep after prep phase so that drives can relax
-		time.Sleep(5 * time.Second)
 		log.WithField("test", test.Name).Info("All workers have finished preparations - starting performance test")
 		startTime := time.Now().UTC()
 		for worker := 0; worker < test.Workers; worker++ {

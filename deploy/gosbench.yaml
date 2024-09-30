@@ -378,6 +378,7 @@ data:
         workers_share_buckets: True
         # Number of requests processed in parallel by each worker
         parallel_clients: 64
+        payload_generator: random # random or empty
         # Remove all generated buckets and its content after run
         # clean_after: True
         clean_after: False
