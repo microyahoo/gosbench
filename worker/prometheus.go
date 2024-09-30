@@ -1,11 +1,17 @@
 package main
 
 import (
+	"net/http"
+	"sync"
+
 	"contrib.go.opencensus.io/exporter/prometheus"
-	"github.com/mulbc/gosbench/common"
 	prom "github.com/prometheus/client_golang/prometheus"
 	promModel "github.com/prometheus/client_model/go"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/stats/view"
+
+	"github.com/mulbc/gosbench/common"
 )
 
 const (
@@ -13,9 +19,8 @@ const (
 )
 
 var (
-	pe           *prometheus.Exporter
-	promRegistry = prom.NewRegistry()
-
+	registerOnce  sync.Once
+	promRegistry  = prom.NewRegistry()
 	promTestStart = prom.NewGaugeVec(
 		prom.GaugeOpts{
 			Name:      "test_start",
@@ -44,8 +49,8 @@ var (
 		prom.HistogramOpts{
 			Name:      "ops_latency",
 			Namespace: namespace,
-			Help:      "Histogram latency of S3 operations",
-			Buckets:   prom.ExponentialBuckets(2, 2, 12),
+			Help:      "Histogram latency(ms) of S3 operations",
+			Buckets:   prom.ExponentialBuckets(0.5, 2, 20),
 		}, []string{"testName", "method"})
 	promUploadedBytes = prom.NewCounterVec(
 		prom.CounterOpts{
@@ -63,8 +68,8 @@ var (
 		prom.HistogramOpts{
 			Name:      "gen_bytes_latency",
 			Namespace: namespace,
-			Help:      "Histogram latency of generating random bytes",
-			Buckets:   prom.ExponentialBuckets(2, 2, 12),
+			Help:      "Histogram latency(ms) of generating random bytes",
+			Buckets:   prom.ExponentialBuckets(0.001, 2, 18),
 		}, []string{"testName"})
 	promGenBytesSize = prom.NewGaugeVec(
 		prom.GaugeOpts{
@@ -74,10 +79,40 @@ var (
 		}, []string{"testName"})
 )
 
-func init() {
-	// Then create the prometheus stat exporter
+func newHandler() http.Handler {
 	var err error
-	pe, err = prometheus.NewExporter(prometheus.Options{
+	registerOnce.Do(func() {
+		if err = promRegistry.Register(promTestStart); err != nil {
+			log.WithError(err).Error("Issues when adding test_start gauge to Prometheus registry")
+		}
+		if err = promRegistry.Register(promTestEnd); err != nil {
+			log.WithError(err).Error("Issues when adding test_end gauge to Prometheus registry")
+		}
+		if err = promRegistry.Register(promFinishedOps); err != nil {
+			log.WithError(err).Error("Issues when adding finished_ops counter to Prometheus registry")
+		}
+		if err = promRegistry.Register(promFailedOps); err != nil {
+			log.WithError(err).Error("Issues when adding failed_ops counter to Prometheus registry")
+		}
+		if err = promRegistry.Register(promLatency); err != nil {
+			log.WithError(err).Error("Issues when adding ops_latency histogram to Prometheus registry")
+		}
+		if err = promRegistry.Register(promGenBytesLatency); err != nil {
+			log.WithError(err).Error("Issues when adding gen_bytes_latency histogram to Prometheus registry")
+		}
+		if err = promRegistry.Register(promGenBytesSize); err != nil {
+			log.WithError(err).Error("Issues when adding gen_bytes_size gauge to Prometheus registry")
+		}
+		if err = promRegistry.Register(promUploadedBytes); err != nil {
+			log.WithError(err).Error("Issues when adding uploaded_bytes counter to Prometheus registry")
+		}
+		if err = promRegistry.Register(promDownloadedBytes); err != nil {
+			log.WithError(err).Error("Issues when adding downloaded_bytes counter to Prometheus registry")
+		}
+	})
+
+	// promDownloadedBytes.WithLabelValues("test", "GET").Add(float64(1111)) // test
+	pe, err := prometheus.NewExporter(prometheus.Options{
 		Namespace: namespace,
 		ConstLabels: map[string]string{
 			"version": "0.0.1",
@@ -88,33 +123,17 @@ func init() {
 		log.WithError(err).Fatalf("Failed to create the Prometheus exporter")
 	}
 
-	if err = promRegistry.Register(promTestStart); err != nil {
-		log.WithError(err).Error("Issues when adding test_start gauge to Prometheus registry")
+	if err := view.Register([]*view.View{
+		ochttp.ClientSentBytesDistribution,
+		ochttp.ClientReceivedBytesDistribution,
+		ochttp.ClientRoundtripLatencyDistribution,
+		ochttp.ClientCompletedCount,
+	}...); err != nil {
+		log.WithError(err).Fatalf("Failed to register HTTP client views:")
 	}
-	if err = promRegistry.Register(promTestEnd); err != nil {
-		log.WithError(err).Error("Issues when adding test_end gauge to Prometheus registry")
-	}
-	if err = promRegistry.Register(promFinishedOps); err != nil {
-		log.WithError(err).Error("Issues when adding finished_ops counter to Prometheus registry")
-	}
-	if err = promRegistry.Register(promFailedOps); err != nil {
-		log.WithError(err).Error("Issues when adding failed_ops counter to Prometheus registry")
-	}
-	if err = promRegistry.Register(promLatency); err != nil {
-		log.WithError(err).Error("Issues when adding ops_latency histogram to Prometheus registry")
-	}
-	if err = promRegistry.Register(promGenBytesLatency); err != nil {
-		log.WithError(err).Error("Issues when adding gen_bytes_latency histogram to Prometheus registry")
-	}
-	if err = promRegistry.Register(promGenBytesSize); err != nil {
-		log.WithError(err).Error("Issues when adding gen_bytes_size gauge to Prometheus registry")
-	}
-	if err = promRegistry.Register(promUploadedBytes); err != nil {
-		log.WithError(err).Error("Issues when adding uploaded_bytes counter to Prometheus registry")
-	}
-	if err = promRegistry.Register(promDownloadedBytes); err != nil {
-		log.WithError(err).Error("Issues when adding downloaded_bytes counter to Prometheus registry")
-	}
+	view.RegisterExporter(pe)
+
+	return pe
 }
 
 func (w *Worker) getCurrentPromValues() common.BenchmarkResult {
@@ -160,6 +179,9 @@ func averageHistogramForTest(metrics []*promModel.Metric, testName string) float
 				count += float64(*metric.Histogram.SampleCount)
 			}
 		}
+	}
+	if count == 0 {
+		return -1
 	}
 	return sum / count
 }

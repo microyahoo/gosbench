@@ -72,7 +72,16 @@ func run() {
 
 	go func() {
 		mux := http.NewServeMux()
-		mux.Handle("/metrics", pe)
+		mux.Handle("/metrics", newHandler())
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`<html>
+             <head><title>Gosbench Exporter</title></head>
+             <body>
+             <h1>Gosbench Exporter</h1>
+             <p><a href="` + `/metrics` + `">Metrics</a></p>
+             </body>
+             </html>`))
+		})
 		// http://localhost:8888/metrics
 		log.Infof("Starting Prometheus Exporter on port %d", prometheusPort)
 		if err := http.ListenAndServe(fmt.Sprintf(":%d", prometheusPort), mux); err != nil {
@@ -104,6 +113,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 		// return errors.New("Could not establish connection to server yet")
 		return err
 	}
+	defer conn.Close()
 	encoder := json.NewEncoder(conn)
 	decoder := json.NewDecoder(conn)
 
@@ -114,7 +124,6 @@ func (w *Worker) connectToServer(serverAddress string) error {
 		err := decoder.Decode(&response)
 		if err != nil {
 			log.WithField("message", response).WithError(err).Error("Server responded unusually - reconnecting")
-			conn.Close()
 			return errors.New("Issue when receiving work from server")
 		}
 		log.Tracef("Response: %+v", response)
@@ -123,24 +132,29 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			config := *response.Config
 			w.config = config
 			w.parallelClients = w.config.Test.ParallelClients
-			log.Info("Got config from server - starting preparations now")
+			w.workQueue.Queue = nil // reset work queue
+			log.Infof("Got config %+v from server - starting preparations now", config.Test)
 
 			InitS3(*config.S3Config)
 			w.fillWorkqueue(config.WorkerID, config.Test.WorkerShareBuckets)
 
 			if !config.Test.SkipPrepare {
 				for _, work := range w.workQueue.Queue {
-					err = work.Prepare(config.Test)
-					if err != nil {
-						log.WithError(err).Error("Error during work preparation - ignoring")
+					e := work.Prepare(config.Test)
+					if e != nil {
+						log.WithError(e).Error("Error during work preparation - ignoring")
 					}
 				}
 			}
 			log.Info("Preparations finished - waiting on server to start work")
-			_ = encoder.Encode(common.WorkerMessage{Message: "preparations done"})
+			err = encoder.Encode(common.WorkerMessage{Message: "preparations done"})
+			if err != nil {
+				log.WithError(err).Error("Sending preparations done message to server- reconnecting")
+				return errors.New("Issue when sending preparations done to server")
+			}
 		case "start work":
 			if w.config == (common.WorkerConf{}) || len(w.workQueue.Queue) == 0 {
-				log.Fatal("Was instructed to start work - but the preparation step is incomplete - reconnecting")
+				log.Warningf("Was instructed to start work - but the preparation step is incomplete - reconnecting")
 				return nil
 			}
 			log.Info("Starting to work")
@@ -149,7 +163,11 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			benchResults.Duration = duration
 			benchResults.Bandwidth = benchResults.Bytes / duration.Seconds()
 			log.Infof("PROM VALUES %+v", benchResults)
-			_ = encoder.Encode(common.WorkerMessage{Message: "work done", BenchResult: benchResults})
+			err = encoder.Encode(common.WorkerMessage{Message: "work done", BenchResult: benchResults})
+			if err != nil {
+				log.WithError(err).Error("Sending work done message to server- reconnecting")
+				return errors.New("Issue when sending work done to server")
+			}
 			// Work is done - return to being a ready worker by reconnecting
 			return nil
 		case "shutdown":
@@ -177,8 +195,10 @@ func (w *Worker) PerfTest() time.Duration {
 	log.Infof("Started %d parallel clients", testConfig.ParallelClients)
 	if testConfig.Runtime != 0 {
 		w.workUntilTimeout(workChannel, notifyChan, time.Duration(testConfig.Runtime))
-	} else {
+	} else if testConfig.OpsDeadline != 0 {
 		w.workUntilOps(workChannel, testConfig.OpsDeadline)
+	} else {
+		w.workOneShot(workChannel)
 	}
 	// Wait for all the goroutines to finish
 	wg.Wait()
@@ -240,6 +260,15 @@ func (w *Worker) workUntilTimeout(workChannel chan WorkItem, notifyChan chan<- s
 		} else {
 			log.Debug("Skip to delete preparation re-run finished")
 		}
+	}
+}
+
+func (w *Worker) workOneShot(workChannel chan WorkItem) {
+	for _, work := range w.workQueue.Queue {
+		workChannel <- work
+	}
+	for worker := 0; worker < w.parallelClients; worker++ {
+		workChannel <- &Stopper{}
 	}
 }
 

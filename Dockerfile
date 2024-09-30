@@ -1,4 +1,4 @@
-FROM golang:alpine as builder
+FROM reg.deeproute.ai/deeproute-public/go/golang:alpine as builder
 ARG TYPE
 ENV GOBIN=/go/bin
 ENV GOPATH=/go/src
@@ -15,7 +15,7 @@ ADD . /build/
 RUN echo $TYPE
 RUN cd /build/$TYPE; go build -o main .
 
-FROM alpine
+FROM reg.deeproute.ai/deeproute-public/alpine:latest
 ARG TYPE
 LABEL maintainer="Chris Blum <cblum@redhat.com>"
 

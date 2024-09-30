@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3config "github.com/aws/aws-sdk-go-v2/config"
@@ -18,7 +19,6 @@ import (
 	"github.com/aws/smithy-go"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/stats/view"
 
 	"github.com/mulbc/gosbench/common"
 )
@@ -28,18 +28,6 @@ var (
 	ctx                  context.Context
 	hc                   *http.Client
 )
-
-func init() {
-	if err := view.Register([]*view.View{
-		ochttp.ClientSentBytesDistribution,
-		ochttp.ClientReceivedBytesDistribution,
-		ochttp.ClientRoundtripLatencyDistribution,
-		ochttp.ClientCompletedCount,
-	}...); err != nil {
-		log.WithError(err).Fatalf("Failed to register HTTP client views:")
-	}
-	view.RegisterExporter(pe)
-}
 
 // InitS3 initialises the S3 session
 // Also starts the Prometheus exporter on Port 8888
@@ -103,6 +91,7 @@ func putObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseO
 	bucket := op.Bucket
 	objectName := op.ObjectName
 	objectContent := bytes.NewReader(generateRandomBytes(op.TestName, op.ObjectSize))
+	start := time.Now()
 	if conf.WriteOption != nil {
 		// https://aws.github.io/aws-sdk-go-v2/docs/sdk-utilities/s3/
 		// Create an uploader with S3 client and custom options
@@ -128,6 +117,8 @@ func putObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseO
 		log.WithError(err).WithField("object", objectName).WithField("bucket", bucket).Errorf("Failed to upload object")
 		return err
 	}
+	duration := time.Since(start)
+	promLatency.WithLabelValues(op.TestName, "PUT").Observe(float64(duration.Milliseconds()))
 
 	log.WithField("bucket", bucket).WithField("key", objectName).Tracef("Upload successful")
 

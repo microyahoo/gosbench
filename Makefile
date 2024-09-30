@@ -7,7 +7,7 @@ build-local:
 	@go build -o ./bin/gosbench-worker ./worker
 
 build:
-	docker pull golang:alpine
+	docker pull reg.deeproute.ai/deeproute-public/go/golang:alpine
 	docker build --tag reg.deeproute.ai/deeproute-public/tools/gosbench-server:$(VCS_REF) --build-arg "TYPE=server" --build-arg "BUILD_DATE=$(BUILD_DATE)" --build-arg "VCS_REF=$(VCS_REF)" .
 	docker build --tag reg.deeproute.ai/deeproute-public/tools/gosbench-worker:$(VCS_REF) --build-arg "TYPE=worker" --build-arg "BUILD_DATE=$(BUILD_DATE)" --build-arg "VCS_REF=$(VCS_REF)" .
 
