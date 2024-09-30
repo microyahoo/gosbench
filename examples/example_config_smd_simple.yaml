@@ -57,9 +57,9 @@ tests:
     # End after a set amount of time
     # Runtime in time.Duration - do not forget the unit please
     # stop_with_runtime: 60s # Example with 60 seconds runtime
-    stop_with_runtime:
     # End after a set amount of operations (per worker)
-    # stop_with_ops: 10
+    # stop_with_ops: 100
+    oneshot: true
     # Number of s3 performance test servers to run in parallel
     workers: 3
     # Set wheter workers share the same buckets or not
@@ -92,7 +92,8 @@ tests:
       number_distribution: sequential
     bucket_prefix: gosbench-prefix-
     object_prefix: obj-
-    # stop_with_ops: 5
+    # stop_with_ops: 100
+    oneshot: true
     workers: 3
     workers_share_buckets: True
     parallel_clients: 3
@@ -117,7 +118,8 @@ tests:
       number_distribution: sequential
     bucket_prefix: gosbench-prefix-
     object_prefix: obj-
-    # stop_with_ops: 10
+    # stop_with_ops: 100
+    oneshot: true
     skip_prepare: false
     workers: 3
     workers_share_buckets: True
