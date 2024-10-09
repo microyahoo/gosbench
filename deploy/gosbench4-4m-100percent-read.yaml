@@ -80,6 +80,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+          - name: GOSBENCH_IN_CONTAINER
+            value: "true"
           - name: PROMETHEUSPORT
             value: "8888"
           - name: SERVERADDRESS

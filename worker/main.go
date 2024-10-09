@@ -20,6 +20,10 @@ import (
 	"github.com/mulbc/gosbench/common"
 )
 
+const (
+	gosbenchInContainer = "GOSBENCH_IN_CONTAINER"
+)
+
 var (
 	prometheusPort int
 	debug, trace   bool
@@ -97,6 +101,12 @@ func run() {
 		if err != nil {
 			log.WithError(err).Error("Issues with server connection")
 			time.Sleep(time.Second)
+		} else {
+			if os.Getenv(gosbenchInContainer) == "true" {
+				select {} // sleep forever in container!
+			} else {
+				os.Exit(0)
+			}
 		}
 	}
 }
@@ -136,7 +146,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			log.Infof("Got config %+v from server - starting preparations now", config.Test)
 
 			w.initS3()
-			w.fillWorkqueue(config.WorkerID, config.Test.WorkerShareBuckets)
+			w.fillWorkqueue()
 
 			if !config.Test.SkipPrepare {
 				for _, work := range w.workQueue.Queue {
@@ -158,7 +168,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 				return nil
 			}
 			log.Info("Starting to work")
-			duration := w.PerfTest()
+			duration := w.perfTest()
 			benchResults := w.getCurrentPromValues()
 			benchResults.Duration = duration
 			benchResults.Bandwidth = benchResults.Bytes / duration.Seconds()
@@ -168,17 +178,15 @@ func (w *Worker) connectToServer(serverAddress string) error {
 				log.WithError(err).Error("Sending work done message to server- reconnecting")
 				return errors.New("Issue when sending work done to server")
 			}
-			// Work is done - return to being a ready worker by reconnecting
-			return nil
 		case "shutdown":
 			log.Info("Server told us to shut down - all work is done for today")
-			os.Exit(0)
+			return nil
 		}
 	}
 }
 
-// PerfTest runs a performance test as configured in testConfig
-func (w *Worker) PerfTest() time.Duration {
+// perfTest runs a performance test as configured in testConfig
+func (w *Worker) perfTest() time.Duration {
 	workerID := w.config.WorkerID
 	testConfig := w.config.Test
 	workChannel := make(chan WorkItem, len(w.workQueue.Queue))
@@ -309,7 +317,9 @@ func (w *Worker) workUntilOps(workChannel chan WorkItem, maxOps uint64) {
 	}
 }
 
-func (w *Worker) fillWorkqueue(workerID string, shareBucketName bool) {
+func (w *Worker) fillWorkqueue() {
+	workerID := w.config.WorkerID
+	shareBucketName := w.config.Test.WorkerShareBuckets
 	testConfig := w.config.Test
 
 	if testConfig.ReadWeight > 0 {
