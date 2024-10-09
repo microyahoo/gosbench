@@ -189,7 +189,7 @@ func executeTestOnWorker(conn *net.Conn, config *common.WorkerConf, doneChannel 
 			(*conn).Close()
 			return
 		}
-		log.Tracef("Response: %+v", response)
+		log.Infof("Response: %+v", response)
 		switch response.Message {
 		case "preparations done":
 			doneChannel <- true

@@ -1,0 +1,178 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gosbench-server
+  namespace: gosbench
+  labels:
+    app: gosbench-server
+    stack: gosbench
+    type: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gosbench-server
+  template:
+    metadata:
+      labels:
+        app: gosbench-server
+        stack: gosbench
+        type: server
+    spec:
+      hostNetwork: true
+      containers:
+        - name: gobench-server
+          image: reg.deeproute.ai/deeproute-public/tools/gosbench-server:latest # need update
+          imagePullPolicy: Always
+          # image: ubuntu
+          # imagePullPolicy: IfNotPresent
+          # command: ["/bin/bash", "-c", "--"]
+          # args: [ "while true; do sleep 30; done;" ]
+          env:
+          - name: CONFIGFILE
+            value: "/config/config.yaml"
+          - name: SERVERPORT
+            value: "2000"
+          - name: DEBUG
+            value: "true"
+          - name: TRACE
+            value: "true"
+          ports:
+            - containerPort: 2000
+          #   - containerPort: 2001
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: config
+            mountPath: /config/
+      volumes:
+      - name: config
+        configMap:
+          name: gosbench-config
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: gosbench-worker
+  namespace: gosbench
+  labels:
+    k8s-app: gosbench-worker
+spec: 
+  selector:
+    matchLabels:
+      name: gosbench-worker
+  template:
+    metadata:
+      labels:
+        name: gosbench-worker
+    spec:
+      # tolerations:
+      # - effect: NoSchedule
+      #   key: node-role.kubernetes.io/master
+      #hostNetwork: true
+      containers:
+        - name: gosbench-worker
+          image: reg.deeproute.ai/deeproute-public/tools/gosbench-worker:latest # need update
+          # command: ['./main', '-t=t', '-s', 'gosbench-server:2000']
+          imagePullPolicy: "Always"
+          env:
+          - name: PROMETHEUSPORT
+            value: "8888"
+          - name: SERVERADDRESS
+            value: "gosbench-server:2000"
+          - name: DEBUG
+            value: "false"
+          - name: TRACE
+            value: "true"
+          # resources:
+          #   limits:
+          #     memory: 200Mi
+          #     cpu: 200m
+          #   requests:
+          #     cpu: 10m
+          #     memory: 10Mi
+          ports:
+            - containerPort: 8888
+              hostPort:  7777  # expose as host port
+          securityContext:
+            privileged: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gosbench-server
+  namespace: gosbench
+  labels:
+    app: gosbench-server
+    stack: gosbench
+spec:
+  type: NodePort
+  ports:
+    - name: gosbench-server
+      port: 2000
+      targetPort: 2000
+  selector:
+    app: gosbench-server
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gosbench-config
+  namespace: gosbench
+data:
+  config.yaml: |
+    s3_configs:
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.11.81:80
+        skipSSLverify: true
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.11.82:80
+        skipSSLverify: true
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.11.83:80
+        skipSSLverify: true
+    
+    # For generating annotations when we start/stop testcases
+    # https://grafana.com/docs/http_api/annotations/#create-annotation
+    grafana_config:
+      endpoint: http://grafana
+      username: admin
+      password: grafana
+    
+    tests:
+      - name: read-4M
+        existing_read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 20000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 5
+          number_distribution: sequential
+        bucket_prefix: gosbench-test-prefix-4m-
+        object_prefix: obj-4M-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 3
+        workers_share_buckets: True
+        parallel_clients: 512
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+---

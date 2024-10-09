@@ -143,10 +143,7 @@ func (op *ReadOperation) Do(conf *common.TestCaseConfiguration) error {
 // Do executes the actual work of the WriteOperation
 func (op *WriteOperation) Do(conf *common.TestCaseConfiguration) error {
 	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Doing WriteOperation")
-	start := time.Now()
 	err := putObject(svc, conf, op.BaseOperation)
-	duration := time.Since(start)
-	promLatency.WithLabelValues(op.TestName, "PUT").Observe(float64(duration.Milliseconds()))
 	if err != nil {
 		promFailedOps.WithLabelValues(op.TestName, "PUT").Inc()
 	} else {
