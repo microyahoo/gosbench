@@ -4,32 +4,62 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"math/rand"
 	"net"
 	"os"
 	"time"
 
-	"github.com/mulbc/gosbench/common"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"github.com/mulbc/gosbench/common"
 )
 
-func init() {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
-	rand.New(rand.NewSource(time.Now().UnixNano()))
+var (
+	configFile   string
+	serverPort   int
+	readyWorkers chan *net.Conn
+	debug, trace bool
+)
 
-	flag.StringVar(&configFileLocation, "c", "", "Config file describing test run")
-	flag.IntVar(&serverPort, "p", 2000, "Port on which the server will be available for clients. Default: 2000")
-	flag.BoolVar(&debug, "d", false, "enable debug log output")
-	flag.BoolVar(&trace, "t", false, "enable trace log output")
-	flag.Parse()
-	// Only demand this flag if we are not running go test
-	if configFileLocation == "" && flag.Lookup("test.v") == nil {
-		log.Fatal("-c is a mandatory parameter - please specify the config file")
+type Server struct {
+	config *common.TestConf
+}
+
+func main() {
+	rootCmd := newCommand()
+	cobra.CheckErr(rootCmd.Execute())
+}
+
+func newCommand() *cobra.Command {
+	cmds := &cobra.Command{
+		Use: "gosbench-server",
+		Run: func(cmd *cobra.Command, args []string) {
+			run()
+		},
+	}
+	cmds.Flags().SortFlags = false
+
+	viper.SetDefault("DEBUG", false)
+	viper.SetDefault("TRACE", false)
+	viper.SetDefault("SERVERPORT", 2000)
+
+	viper.AutomaticEnv()
+	viper.AllowEmptyEnv(true)
+
+	cmds.Flags().StringVar(&configFile, "config.file", viper.GetString("CONFIGFILE"), "Config file describing test run")
+	cmds.Flags().BoolVar(&debug, "debug", viper.GetBool("DEBUG"), "enable debug log output")
+	cmds.Flags().BoolVar(&trace, "trace", viper.GetBool("TRACE"), "enable trace log output")
+	cmds.Flags().IntVar(&serverPort, "server.port", viper.GetInt("SERVERPORT"), "Port on which the server will be available for clients. Default: 2000")
+
+	return cmds
+}
+
+func run() {
+	if configFile == "" {
+		log.Fatal("--config.file is a mandatory parameter - please specify the config file")
 	}
 	if debug {
 		log.SetLevel(log.DebugLevel)
@@ -38,21 +68,10 @@ func init() {
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
-}
+	log.Debugf("viper settings=%+v", viper.AllSettings())
+	log.Debugf("gosbench server configFile=%s, serverPort=%d", configFile, serverPort)
 
-var (
-	configFileLocation string
-	serverPort         int
-	readyWorkers       chan *net.Conn
-	debug, trace       bool
-)
-
-type Server struct {
-	config *common.TestConf
-}
-
-func main() {
-	config := common.LoadConfigFromFile(configFileLocation)
+	config := common.LoadConfigFromFile(configFile)
 	common.CheckConfig(config)
 
 	readyWorkers = make(chan *net.Conn)
@@ -276,4 +295,11 @@ func getCSVFileHandle() (*os.File, bool, error) {
 
 	return nil, false, errors.New("Could not find previous CSV for appending and could not write new CSV file to current dir and /tmp/ giving up")
 
+}
+
+func init() {
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 }

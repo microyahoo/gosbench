@@ -39,16 +39,6 @@ func init() {
 		log.WithError(err).Fatalf("Failed to register HTTP client views:")
 	}
 	view.RegisterExporter(pe)
-	go func() {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", pe)
-		// http://localhost:8888/metrics
-		log.Infof("Starting Prometheus Exporter on port %d", prometheusPort)
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", prometheusPort), mux); err != nil {
-			log.WithError(err).Fatalf("Failed to run Prometheus /metrics endpoint:")
-		}
-	}()
-
 }
 
 // InitS3 initialises the S3 session
