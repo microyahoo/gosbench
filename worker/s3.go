@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,9 +30,26 @@ var (
 	hc                   *http.Client
 )
 
-// InitS3 initialises the S3 session
-// Also starts the Prometheus exporter on Port 8888
-func InitS3(config common.S3Configuration) {
+// initS3 initialises the S3 session
+func (w *Worker) initS3() {
+	config := w.config.S3Configs[w.config.ID%len(w.config.S3Configs)]
+
+	gatewayName := os.Getenv("GATEWAY_NAME")
+	if gatewayName == "" {
+		gatewayName, _ = os.Hostname()
+	}
+	if gatewayName != "" {
+		// prefer to select s3 gateway of the host machine
+		for _, conf := range w.config.S3Configs {
+			if conf.Name == gatewayName {
+				config = conf
+				break
+			}
+		}
+	}
+
+	log.Infof("s3 config info for worker %s: %+v", w.config.WorkerID, config)
+
 	// All clients require a Session. The Session provides the client with
 	// shared configuration such as region, endpoint, and credentials. A
 	// Session should be shared where possible to take advantage of
@@ -84,7 +102,7 @@ func InitS3(config common.S3Configuration) {
 		o.BaseEndpoint = aws.String(config.Endpoint)
 	})
 
-	log.Debug("S3 Init done")
+	log.Info("S3 Init done")
 }
 
 func putObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseOperation) (err error) {

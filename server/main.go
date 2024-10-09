@@ -129,9 +129,10 @@ func (s *Server) scheduleTests() {
 
 		for worker := 0; worker < test.Workers; worker++ {
 			workerConfig := &common.WorkerConf{
-				Test:     test,
-				S3Config: s.config.S3Configs[worker%len(s.config.S3Configs)],
-				WorkerID: fmt.Sprintf("w%d", worker),
+				Test:      test,
+				S3Configs: s.config.S3Configs,
+				WorkerID:  fmt.Sprintf("w%d", worker),
+				ID:        worker,
 			}
 			workerConnection := <-readyWorkers
 			log.WithField("Worker", (*workerConnection).RemoteAddr()).Infof("We found worker %d / %d for test %d", worker+1, test.Workers, testNumber)

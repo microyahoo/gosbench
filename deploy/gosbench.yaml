@@ -74,9 +74,12 @@ spec:
       containers:
         - name: gosbench-worker
           image: reg.deeproute.ai/deeproute-public/tools/gosbench-worker:latest # need update
-          # command: ['./main', '-t=t', '-s', 'gosbench-server:2000']
           imagePullPolicy: "Always"
           env:
+          - name: GATEWAY_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
           - name: PROMETHEUSPORT
             value: "8888"
           - name: SERVERADDRESS
@@ -130,16 +133,19 @@ data:
         region: us-east-1
         endpoint: http://10.3.11.81:80
         skipSSLverify: true
+        name: k1                 # better to match hostname
       - access_key: testy
         secret_key: testy
         region: us-east-1
         endpoint: http://10.3.11.82:80
         skipSSLverify: true
+        name: k2
       - access_key: testy
         secret_key: testy
         region: us-east-1
         endpoint: http://10.3.11.83:80
         skipSSLverify: true
+        name: k3
     
     # For generating annotations when we start/stop testcases
     # https://grafana.com/docs/http_api/annotations/#create-annotation

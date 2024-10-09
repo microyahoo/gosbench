@@ -10,15 +10,15 @@ Gosbench consists of two parts:
 * Server: Coordinates Workers and general test queue
 * Workers: Actually connect to S3 and perform reading, writing, deleting and listing of objects
 
-INFO: `-d` activates debug logging, `-t` activates trace logging
+INFO: `--debug` activates debug logging, `--trace` activates trace logging
 
 ### Running a test
 
 1. Build the server: `go install github.com/mulbc/gosbench/server`
-1. Run the server, specifying a config file: `server -c path/to/config.yaml` - you can find an example config [in the example folder](examples/example_config.yaml)
+1. Run the server, specifying a config file: `server --config.file path/to/config.yaml` - you can find an example config [in the example folder](examples/example_config.yaml)
 1. The server will open port 2000 for workers to connect to - make sure this port is not blocked by your firewall!
 1. Build the worker: `go install github.com/mulbc/gosbench/worker`
-1. Run the worker, specifying the server connection details: `worker -s 192.168.1.1:2000`
+1. Run the worker, specifying the server connection details: `worker --server.address 192.168.1.1:2000`
 1. The worker will immediately connect to the server and will start to get to work.
 The worker opens port 8888 for the Prometheus exporter. Please make sure this port is allowed in your firewall and that you added the worker to the Prometheus config.
 

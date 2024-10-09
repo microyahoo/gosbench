@@ -135,7 +135,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			w.workQueue.Queue = nil // reset work queue
 			log.Infof("Got config %+v from server - starting preparations now", config.Test)
 
-			InitS3(*config.S3Config)
+			w.initS3()
 			w.fillWorkqueue(config.WorkerID, config.Test.WorkerShareBuckets)
 
 			if !config.Test.SkipPrepare {
@@ -153,7 +153,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 				return errors.New("Issue when sending preparations done to server")
 			}
 		case "start work":
-			if w.config == (common.WorkerConf{}) || len(w.workQueue.Queue) == 0 {
+			if len(w.workQueue.Queue) == 0 {
 				log.Warningf("Was instructed to start work - but the preparation step is incomplete - reconnecting")
 				return nil
 			}
