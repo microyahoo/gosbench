@@ -32,6 +32,7 @@ type S3Configuration struct {
 	Endpoint      string        `yaml:"endpoint" json:"endpoint"`
 	Timeout       time.Duration `yaml:"timeout" json:"timeout"`
 	SkipSSLVerify bool          `yaml:"skipSSLverify" json:"skipSSLverify"`
+	Name          string        `yaml:"name" json:"name"`
 }
 
 // GrafanaConfiguration contains all information necessary to add annotations
@@ -99,9 +100,10 @@ type TestConf struct {
 // WorkerConf is the configuration that is sent to each worker
 // It includes a subset of information from the Testconf
 type WorkerConf struct {
-	S3Config *S3Configuration
-	Test     *TestCaseConfiguration
-	WorkerID string
+	S3Configs []*S3Configuration
+	Test      *TestCaseConfiguration
+	WorkerID  string
+	ID        int
 }
 
 // BenchResult is the struct that will contain the benchmark results from a

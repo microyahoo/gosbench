@@ -5,31 +5,37 @@ s3_configs:
     region: us-east-1
     endpoint: http://10.16.11.105:80
     skipSSLverify: true
+    name: k1
   - access_key: testy
     secret_key: testy
     region: us-east-1
     endpoint: http://10.16.11.106:80
     skipSSLverify: true
+    name: k2
   - access_key: testy
     secret_key: testy
     region: us-east-1
     endpoint: http://10.16.11.107:80
     skipSSLverify: true
+    name: k3
   - access_key: testy
     secret_key: testy
     region: us-east-1
     endpoint: http://10.16.11.108:80
     skipSSLverify: true
+    name: k4
   - access_key: testy
     secret_key: testy
     region: us-east-1
     endpoint: http://10.16.11.109:80
     skipSSLverify: true
+    name: k5
   - access_key: testy
     secret_key: testy
     region: us-east-1
     endpoint: http://10.16.11.110:80
     skipSSLverify: true
+    name: k6
 
 # For generating annotations when we start/stop testcases
 # https://grafana.com/docs/http_api/annotations/#create-annotation
