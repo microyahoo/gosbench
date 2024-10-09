@@ -1,8 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
 	"fmt"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -240,16 +240,48 @@ func (w *Worker) DoWork(workChannel <-chan WorkItem, notifyChan <-chan struct{},
 	}
 }
 
-func generateRandomBytes(testName string, size uint64) []byte {
+func generateBytes(payloadGenerator, testName string, size uint64) []byte {
 	start := time.Now()
-	random := make([]byte, size)
-	n, err := rand.Read(random)
-	if err != nil {
-		log.WithError(err).Fatal("I had issues getting my random bytes initialized")
+	data := make([]byte, size)
+	switch payloadGenerator {
+	case "empty": // https://github.com/dvassallo/s3-benchmark/blob/aebfe8e05c1553f35c16362b4ac388d891eee440/main.go#L290-L297
+	// case "random":
+	default:
+		randASCIIBytes(data, rng)
 	}
 	duration := time.Since(start)
 	promGenBytesLatency.WithLabelValues(testName).Observe(float64(duration.Milliseconds()))
-	promGenBytesSize.WithLabelValues(testName).Set(float64(n))
+	promGenBytesSize.WithLabelValues(testName).Set(float64(size))
 
-	return random
+	return data
+}
+
+// https://github.com/minio/warp/blob/master/pkg/generator/generator.go
+const asciiLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890()"
+
+var (
+	asciiLetterBytes [len(asciiLetters)]byte
+	rng              *rand.Rand
+)
+
+// randASCIIBytes fill destination with pseudorandom ASCII characters [a-ZA-Z0-9].
+// Should never be considered for true random data generation.
+func randASCIIBytes(dst []byte, rng *rand.Rand) {
+	// Use a single seed.
+	v := rng.Uint64()
+	rnd := uint32(v)
+	rnd2 := uint32(v >> 32)
+	for i := range dst {
+		dst[i] = asciiLetterBytes[int(rnd>>16)%len(asciiLetterBytes)]
+		rnd ^= rnd2
+		rnd *= 2654435761
+	}
+}
+
+func init() {
+	for i, v := range asciiLetters {
+		asciiLetterBytes[i] = byte(v)
+	}
+	rndSrc := rand.NewSource(int64(rand.Uint64()))
+	rng = rand.New(rndSrc)
 }
