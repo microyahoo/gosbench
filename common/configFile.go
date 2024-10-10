@@ -108,11 +108,12 @@ type WorkerConf struct {
 // BenchResult is the struct that will contain the benchmark results from a
 // worker after it has finished its benchmark
 type BenchmarkResult struct {
-	TestName        string
-	Operations      float64
-	Workers         float64
-	ParallelClients float64
-	Bytes           float64
+	TestName             string
+	SuccessfulOperations float64
+	FailedOperations     float64
+	Workers              float64
+	ParallelClients      float64
+	Bytes                float64
 	// Bandwidth is the amount of Bytes per second of runtime
 	Bandwidth          float64
 	LatencyAvg         float64

@@ -159,7 +159,8 @@ func (w *Worker) getCurrentPromValues() common.BenchmarkResult {
 	for _, metric := range result {
 		resultmap[*metric.Name] = metric.Metric
 	}
-	benchResult.Operations = sumCounterForTest(resultmap["gosbench_finished_ops"], testName)
+	benchResult.SuccessfulOperations = sumCounterForTest(resultmap["gosbench_finished_ops"], testName)
+	benchResult.FailedOperations = sumCounterForTest(resultmap["gosbench_failed_ops"], testName)
 	benchResult.Bytes = sumCounterForTest(resultmap["gosbench_uploaded_bytes"], testName) + sumCounterForTest(resultmap["gosbench_downloaded_bytes"], testName)
 	benchResult.LatencyAvg = averageHistogramForTest(resultmap["gosbench_ops_latency"], testName)
 	benchResult.GenBytesLatencyAvg = averageHistogramForTest(resultmap["gosbench_gen_bytes_latency"], testName)
