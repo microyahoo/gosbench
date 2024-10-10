@@ -210,10 +210,13 @@ func getObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseO
 		if err != nil {
 			return err
 		}
+		start := time.Now()
 		numBytes, err = io.Copy(io.Discard, result.Body)
 		if err != nil {
 			return err
 		}
+		duration := time.Since(start)
+		promIOCopyLatency.WithLabelValues(op.TestName).Observe(float64(duration.Milliseconds()))
 	}
 	if numBytes != int64(objectSize) {
 		return fmt.Errorf("Expected object length %d is not matched to actual object length %d", objectSize, numBytes)
