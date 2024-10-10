@@ -30,7 +30,6 @@ type BaseOperation struct {
 // ReadOperation stands for a read operation
 type ReadOperation struct {
 	*BaseOperation
-	WorksOnPreexistingObject bool
 }
 
 // WriteOperation stands for a write operation
@@ -88,11 +87,8 @@ func IncreaseOperationValue(operation string, value float64, queue *WorkQueue) e
 
 // Prepare prepares the execution of the ReadOperation
 func (op *ReadOperation) Prepare(conf *common.TestCaseConfiguration) error {
-	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).WithField("Preexisting?", op.WorksOnPreexistingObject).Debug("Preparing ReadOperation")
-	if op.WorksOnPreexistingObject {
-		return nil
-	}
-	return putObject(housekeepingSvc, conf, op.BaseOperation)
+	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Preparing ReadOperation")
+	return nil
 }
 
 // Prepare prepares the execution of the WriteOperation
@@ -126,7 +122,7 @@ func (op *Stopper) Prepare(conf *common.TestCaseConfiguration) error {
 
 // Do executes the actual work of the ReadOperation
 func (op *ReadOperation) Do(conf *common.TestCaseConfiguration) error {
-	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).WithField("Preexisting?", op.WorksOnPreexistingObject).Debug("Doing ReadOperation")
+	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Doing ReadOperation")
 	start := time.Now()
 	err := getObject(svc, conf, op.BaseOperation)
 	duration := time.Since(start)
@@ -190,10 +186,7 @@ func (op *Stopper) Do(conf *common.TestCaseConfiguration) error {
 
 // Clean removes the objects and buckets left from the previous ReadOperation
 func (op *ReadOperation) Clean() error {
-	if op.WorksOnPreexistingObject {
-		return nil
-	}
-	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).WithField("Preexisting?", op.WorksOnPreexistingObject).Debug("Cleaning up ReadOperation")
+	log.WithField("bucket", op.Bucket).WithField("object", op.ObjectName).Debug("Cleaning up ReadOperation")
 	return deleteObject(housekeepingSvc, op.ObjectName, op.Bucket)
 }
 

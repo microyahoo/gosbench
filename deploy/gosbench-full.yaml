@@ -201,7 +201,6 @@ data:
     tests:
       - name: write-4k-4threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -246,7 +245,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4k-4threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -298,7 +296,6 @@ data:
         clean_after: True
       - name: write-4k-8threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -343,7 +340,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4k-8threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -395,7 +391,6 @@ data:
         clean_after: True
       - name: write-4k-16threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -440,7 +435,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4k-16threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -492,7 +486,6 @@ data:
         clean_after: True
       - name: write-4k-32threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -537,7 +530,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4k-32threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -589,7 +581,6 @@ data:
         clean_after: True
       - name: write-4k-64threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -634,7 +625,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4k-64threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -686,7 +676,6 @@ data:
         clean_after: True
       - name: write-8k-4threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -731,7 +720,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-8k-4threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 8
@@ -783,7 +771,6 @@ data:
         clean_after: True
       - name: write-8k-8threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -828,7 +815,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-8k-8threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 8
@@ -880,7 +866,6 @@ data:
         clean_after: True
       - name: write-8k-16threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -925,7 +910,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-8k-16threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 8
@@ -977,7 +961,6 @@ data:
         clean_after: True
       - name: write-8k-32threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1022,7 +1005,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-8k-32threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 8
@@ -1074,7 +1056,6 @@ data:
         clean_after: True
       - name: write-8k-64threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1119,7 +1100,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-8k-64threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 8
@@ -1171,7 +1151,6 @@ data:
         clean_after: True
       - name: write-64k-4threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1216,7 +1195,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-64k-4threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 64
@@ -1267,7 +1245,6 @@ data:
         clean_after: True
       - name: write-64k-8threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1312,7 +1289,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-64k-8threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 64
@@ -1363,7 +1339,6 @@ data:
         clean_after: True
       - name: write-64k-16threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1408,7 +1383,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-64k-16threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 64
@@ -1459,7 +1433,6 @@ data:
         clean_after: True
       - name: write-64k-32threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1504,7 +1477,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-64k-32threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 64
@@ -1555,7 +1527,6 @@ data:
         clean_after: True
       - name: write-64k-64threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1600,7 +1571,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-64k-64threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 64
@@ -1651,7 +1621,6 @@ data:
         clean_after: True
       - name: write-256k-4threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1696,7 +1665,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-256k-4threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 256
@@ -1748,7 +1716,6 @@ data:
         clean_after: True
       - name: write-256k-8threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1793,7 +1760,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-256k-8threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 256
@@ -1845,7 +1811,6 @@ data:
         clean_after: True
       - name: write-256k-16threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1890,7 +1855,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-256k-16threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 256
@@ -1942,7 +1906,6 @@ data:
         clean_after: True
       - name: write-256k-32threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -1987,7 +1950,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-256k-32threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 256
@@ -2039,7 +2001,6 @@ data:
         clean_after: True
       - name: write-256k-64threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -2084,7 +2045,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-256k-64threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 256
@@ -2136,7 +2096,6 @@ data:
         clean_after: True
       - name: write-4m-4threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -2182,7 +2141,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4m-4threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -2233,7 +2191,6 @@ data:
         clean_after: True
       - name: write-4m-8threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -2279,7 +2236,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4m-8threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -2330,7 +2286,6 @@ data:
         clean_after: True
       - name: write-4m-16threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -2376,7 +2331,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4m-16threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -2427,7 +2381,6 @@ data:
         clean_after: True
       - name: write-4m-32threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -2473,7 +2426,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4m-32threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4
@@ -2524,7 +2476,6 @@ data:
         clean_after: True
       - name: write-4m-64threads
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -2570,7 +2521,6 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4m-64threads
-        # existing_read_weight: 100
         read_weight: 100
         objects:
           size_min: 4

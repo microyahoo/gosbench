@@ -158,7 +158,7 @@ data:
     
     tests:
       - name: read-4M
-        existing_read_weight: 100
+        read_weight: 100
         objects:
           size_min: 4
           size_max: 4

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -323,9 +322,6 @@ func (w *Worker) fillWorkqueue() {
 	if testConfig.ReadWeight > 0 {
 		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "read"})
 	}
-	if testConfig.ExistingReadWeight > 0 {
-		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "existing_read"})
-	}
 	if testConfig.WriteWeight > 0 {
 		w.workQueue.OperationValues = append(w.workQueue.OperationValues, KV{Key: "write"})
 	}
@@ -347,21 +343,6 @@ func (w *Worker) fillWorkqueue() {
 		if err != nil {
 			log.WithError(err).WithField("bucket", bucketName).Error("Error when creating bucket")
 		}
-		var preExistingObjects []types.Object
-		var preExistingObjectCount uint64
-		if testConfig.ExistingReadWeight > 0 {
-			preExistingObjects, err = listObjects(housekeepingSvc, "", bucketName)
-			if err != nil {
-				log.WithError(err).Fatalf("Problems when listing contents of bucket %s", bucketName)
-			}
-			preExistingObjectCount = uint64(len(preExistingObjects))
-			log.Infof("Found %d objects in bucket %s", preExistingObjectCount, bucketName)
-
-			if preExistingObjectCount <= 0 {
-				log.Warningf("There is no objects in bucket %s", bucketName)
-				continue
-			}
-		}
 
 		for objectn := testConfig.Objects.NumberMin; objectn <= testConfig.Objects.NumberMax; objectn++ {
 			object := common.EvaluateDistribution(testConfig.Objects.NumberMin, testConfig.Objects.NumberMax, &testConfig.Objects.NumberLast, 1, testConfig.Objects.NumberDistribution)
@@ -381,22 +362,6 @@ func (w *Worker) fillWorkqueue() {
 						ObjectName: fmt.Sprintf("%s%s%d", workerID, testConfig.ObjectPrefix, object),
 						ObjectSize: objectSize,
 					},
-					WorksOnPreexistingObject: false,
-				}
-				w.workQueue.Queue = append(w.workQueue.Queue, new)
-			case "existing_read":
-				err := IncreaseOperationValue(nextOp, 1/float64(testConfig.ExistingReadWeight), w.workQueue)
-				if err != nil {
-					log.WithError(err).Error("Could not increase operational Value - ignoring")
-				}
-				new := &ReadOperation{
-					BaseOperation: &BaseOperation{
-						TestName:   testConfig.Name,
-						Bucket:     bucketName,
-						ObjectName: *preExistingObjects[object%preExistingObjectCount].Key,
-						ObjectSize: uint64(*preExistingObjects[object%preExistingObjectCount].Size),
-					},
-					WorksOnPreexistingObject: true,
 				}
 				w.workQueue.Queue = append(w.workQueue.Queue, new)
 			case "write":
