@@ -124,8 +124,6 @@ func (s *Server) scheduleTests() {
 		doneChannel := make(chan bool, test.Workers)
 		resultChannel := make(chan common.BenchmarkResult, test.Workers)
 		continueWorkers := make(chan bool, test.Workers)
-		defer close(doneChannel)
-		defer close(continueWorkers)
 
 		for worker := 0; worker < test.Workers; worker++ {
 			workerConfig := &common.WorkerConf{
@@ -158,12 +156,17 @@ func (s *Server) scheduleTests() {
 		log.WithField("test", test.Name).Infof("GRAFANA: ?from=%d&to=%d", startTime.UnixNano()/int64(1000000), stopTime.UnixNano()/int64(1000000))
 		benchResult := sumBenchmarkResults(benchResults)
 		benchResult.Duration = stopTime.Sub(startTime)
+		benchResult.ParallelClients = float64(test.ParallelClients)
+		benchResult.Workers = float64(test.Workers)
+
 		log.WithField("test", test.Name).
 			WithField("Total Operations", benchResult.Operations).
 			WithField("Total Bytes", benchResult.Bytes).
 			WithField("Average BW in Byte/s", benchResult.Bandwidth).
 			WithField("Average latency in ms", benchResult.LatencyAvg).
 			WithField("Gen Bytes Average latency in ms", benchResult.GenBytesLatencyAvg).
+			WithField("Workers", benchResult.Workers).
+			WithField("Parallel clients", benchResult.ParallelClients).
 			WithField("Test runtime on server", benchResult.Duration).
 			Infof("PERF RESULTS")
 		writeResultToCSV(benchResult)
@@ -197,7 +200,7 @@ func executeTestOnWorker(conn *net.Conn, config *common.WorkerConf, doneChannel 
 		case "work done":
 			doneChannel <- true
 			resultChannel <- response.BenchResult
-			(*conn).Close()
+			(*conn).Close() // TODO: not close connection
 			return
 		}
 	}
@@ -247,6 +250,8 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 			"Average Bandwidth in Bytes/s",
 			"Average Latency in ms",
 			"Gen Bytes Average Latency in ms",
+			"Workers",
+			"Parallel clients",
 			"Test duration seen by server in seconds",
 		})
 		if err != nil {
@@ -262,6 +267,8 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 		fmt.Sprintf("%f", benchResult.Bandwidth),
 		fmt.Sprintf("%f", benchResult.LatencyAvg),
 		fmt.Sprintf("%f", benchResult.GenBytesLatencyAvg),
+		fmt.Sprintf("%f", benchResult.Workers),
+		fmt.Sprintf("%f", benchResult.ParallelClients),
 		fmt.Sprintf("%f", benchResult.Duration.Seconds()),
 	})
 	if err != nil {
