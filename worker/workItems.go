@@ -255,7 +255,7 @@ const asciiLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456
 var (
 	asciiLetterBytes [len(asciiLetters)]byte
 	rng              = rand.New(rand.NewSource(time.Now().UnixNano()))
-	rndMutex         = &sync.Mutex{}
+	rngMutex         = &sync.Mutex{}
 )
 
 // randASCIIBytes fill destination with pseudorandom ASCII characters [a-ZA-Z0-9].
@@ -263,10 +263,10 @@ var (
 func randASCIIBytes(dst []byte, rng *rand.Rand) {
 	// unprotected access to custom rand.Rand objects can cause panics
 	// https://github.com/golang/go/issues/3611
-	rndMutex.Lock()
+	rngMutex.Lock()
 	// Use a single seed.
 	v := rng.Uint64()
-	rndMutex.Unlock()
+	rngMutex.Unlock()
 	rnd := uint32(v)
 	rnd2 := uint32(v >> 32)
 	for i := range dst {

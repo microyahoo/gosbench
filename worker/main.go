@@ -168,7 +168,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			duration := w.perfTest()
 			benchResults := w.getCurrentPromValues()
 			benchResults.Duration = duration
-			benchResults.Bandwidth = benchResults.Bytes / duration.Seconds()
+			benchResults.BandwidthAvg = benchResults.Bytes / duration.Seconds()
 			log.Infof("PROM VALUES %+v", benchResults)
 			err = encoder.Encode(common.WorkerMessage{Message: "work done", BenchResult: benchResults})
 			if err != nil {

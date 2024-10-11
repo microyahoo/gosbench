@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -8,8 +9,13 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -120,6 +126,7 @@ func run() {
 }
 
 func (s *Server) scheduleTests() {
+	var results []*common.BenchmarkResult
 	for testNumber, test := range s.config.Tests {
 		doneChannel := make(chan bool, test.Workers)
 		resultChannel := make(chan common.BenchmarkResult, test.Workers)
@@ -158,21 +165,38 @@ func (s *Server) scheduleTests() {
 		benchResult.Duration = stopTime.Sub(startTime)
 		benchResult.ParallelClients = float64(test.ParallelClients)
 		benchResult.Workers = float64(test.Workers)
+		benchResult.ObjectSize = (test.Objects.SizeMin + test.Objects.SizeMax) / 2 // TODO: not exact
+		if test.ReadWeight > 0 {
+			benchResult.Type |= common.Read
+		}
+		if test.WriteWeight > 0 {
+			benchResult.Type |= common.Write
+		}
+		if test.DeleteWeight > 0 {
+			benchResult.Type |= common.Delete
+		}
+		if test.ListWeight > 0 {
+			benchResult.Type |= common.List
+		}
 
 		log.WithField("test", test.Name).
 			WithField("Successful Operations", benchResult.SuccessfulOperations).
 			WithField("Failed Operations", benchResult.FailedOperations).
-			WithField("Total Bytes", benchResult.Bytes).
-			WithField("Average BW in Byte/s", benchResult.Bandwidth).
+			WithField("Total MBytes", benchResult.Bytes/1024/1024).
+			WithField("Average BW in MByte/s", benchResult.BandwidthAvg/1024/1024).
 			WithField("Average latency in ms", benchResult.LatencyAvg).
 			WithField("Gen Bytes Average latency in ms", benchResult.GenBytesLatencyAvg).
 			WithField("Workers", benchResult.Workers).
+			WithField("Type", benchResult.Type).
+			WithField("Object size (not exact)", common.ByteSize(benchResult.ObjectSize)). // TODO: not exact
 			WithField("Parallel clients", benchResult.ParallelClients).
 			WithField("Test runtime on server", benchResult.Duration).
 			Infof("PERF RESULTS")
 		writeResultToCSV(benchResult)
+		results = append(results, &benchResult)
 	}
 	log.Info("All performance tests finished")
+	s.generateResults(results)
 	for {
 		workerConnection := <-readyWorkers
 		shutdownWorker(workerConnection)
@@ -226,13 +250,13 @@ func sumBenchmarkResults(results []common.BenchmarkResult) common.BenchmarkResul
 		latencyAverages += result.LatencyAvg
 		genBytesLatencyAverages += result.GenBytesLatencyAvg
 		ioCopyLatencyAverages += result.IOCopyLatencyAvg
-		bandwidthAverages += result.Bandwidth
+		bandwidthAverages += result.BandwidthAvg
 	}
 	sum.LatencyAvg = latencyAverages / float64(len(results))
 	sum.GenBytesLatencyAvg = genBytesLatencyAverages / float64(len(results))
 	sum.IOCopyLatencyAvg = ioCopyLatencyAverages / float64(len(results))
 	sum.TestName = results[0].TestName
-	sum.Bandwidth = bandwidthAverages
+	sum.BandwidthAvg = bandwidthAverages
 
 	return sum
 }
@@ -272,7 +296,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 		fmt.Sprintf("%.0f", benchResult.SuccessfulOperations),
 		fmt.Sprintf("%.0f", benchResult.FailedOperations),
 		fmt.Sprintf("%.0f", benchResult.Bytes),
-		fmt.Sprintf("%f", benchResult.Bandwidth),
+		fmt.Sprintf("%f", benchResult.BandwidthAvg),
 		fmt.Sprintf("%f", benchResult.LatencyAvg),
 		fmt.Sprintf("%f", benchResult.GenBytesLatencyAvg),
 		fmt.Sprintf("%f", benchResult.IOCopyLatencyAvg),
@@ -310,6 +334,110 @@ func getCSVFileHandle() (*os.File, bool, error) {
 
 	return nil, false, errors.New("Could not find previous CSV for appending and could not write new CSV file to current dir and /tmp/ giving up")
 
+}
+
+func (s *Server) generateResults(results []*common.BenchmarkResult) {
+	t := table.NewWriter()
+	var format = "csv"
+	if s.config.ReportConfig != nil {
+		format = s.config.ReportConfig.Format
+	}
+	outputFile := fmt.Sprintf("/tmp/gosbench_results_%d.%s", time.Now().UnixMilli(), format)
+	{
+		f, err := os.Create(outputFile)
+		if err != nil {
+			log.Warningf("Failed to open file %s: %s", outputFile, err)
+			t.SetOutputMirror(os.Stdout)
+		} else {
+			defer f.Close()
+			t.SetOutputMirror(f)
+		}
+		t.AppendHeader(table.Row{"type", "object-size(KB)", "wokers", "parallel-clients", "avg-bandwidth(MB/s)", "avg-latency(ms)",
+			"gen-bytes-avg-latency(ms)", "io-copy-avg-latency(ms)", "successful-ops", "failed-ops", "duration(s)", "total-mbytes", "name",
+		})
+		for _, r := range results {
+			t.AppendRow(table.Row{
+				r.Type.String(),
+				r.ObjectSize / 1024,
+				r.Workers,
+				r.ParallelClients,
+				fmt.Sprintf("%.1f", r.BandwidthAvg/1024/1024),
+				fmt.Sprintf("%.2f", r.LatencyAvg),
+				fmt.Sprintf("%.2f", r.GenBytesLatencyAvg),
+				fmt.Sprintf("%.2f", r.IOCopyLatencyAvg),
+				r.SuccessfulOperations,
+				r.FailedOperations,
+				r.Duration.Round(time.Second),
+				fmt.Sprintf("%.0f", r.Bytes/1024/1024),
+				r.TestName,
+			})
+		}
+		t.SetColumnConfigs([]table.ColumnConfig{
+			{Number: 1, Align: text.AlignCenter},
+			{Number: 2, Align: text.AlignCenter},
+			{Number: 3, Align: text.AlignCenter},
+			{Number: 4, Align: text.AlignCenter},
+			{Number: 5, Align: text.AlignCenter},
+			{Number: 6, Align: text.AlignCenter},
+			{Number: 7, Align: text.AlignCenter},
+			{Number: 8, Align: text.AlignCenter},
+			{Number: 9, Align: text.AlignCenter},
+			{Number: 10, Align: text.AlignCenter},
+			{Number: 11, Align: text.AlignCenter},
+			{Number: 12, Align: text.AlignCenter},
+			{Number: 13, Align: text.AlignCenter},
+		})
+		t.SortBy([]table.SortBy{
+			{
+				Name: "type",
+				Mode: table.Asc,
+			},
+			{
+				Name: "object-size(KB)",
+				Mode: table.AscNumeric,
+			},
+			{
+				Name: "parallel-clients",
+				Mode: table.AscNumeric,
+			},
+		})
+		switch strings.ToLower(format) {
+		case "md", "markdown":
+			t.RenderMarkdown()
+		case "csv":
+			t.RenderCSV()
+		case "html":
+			t.RenderHTML()
+		default:
+			t.Render()
+		}
+	}
+
+	if s.config.ReportConfig == nil || s.config.ReportConfig.Bucket == "" || s.config.ReportConfig.S3Config == nil {
+		return
+	}
+
+	s3Config := s.config.ReportConfig.S3Config
+	ctx := context.Background()
+	client, e := common.NewS3Client(ctx, s3Config.Endpoint, s3Config.AccessKey, s3Config.SecretKey, s3Config.Region, s3Config.SkipSSLVerify, true)
+	if e != nil {
+		log.WithError(e).Warning("Unable to build S3 config to upload report")
+		return
+	}
+	f, e := os.Open(outputFile)
+	if e != nil {
+		log.WithError(e).Warning("Unable to open report file")
+		return
+	}
+	defer f.Close()
+	_, e = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &s.config.ReportConfig.Bucket,
+		Key:    aws.String(fmt.Sprintf("gosbench_results_%d.%s", time.Now().UnixMilli(), format)),
+		Body:   f,
+	})
+	if e != nil {
+		log.Warningf("Failed to upload report to s3 bucket %s: %s", s.config.ReportConfig.Bucket, e)
+	}
 }
 
 func init() {
