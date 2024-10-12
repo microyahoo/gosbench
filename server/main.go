@@ -160,7 +160,8 @@ func (s *Server) scheduleTests() {
 		benchResult.Workers = float64(test.Workers)
 
 		log.WithField("test", test.Name).
-			WithField("Total Operations", benchResult.Operations).
+			WithField("Successful Operations", benchResult.SuccessfulOperations).
+			WithField("Failed Operations", benchResult.FailedOperations).
 			WithField("Total Bytes", benchResult.Bytes).
 			WithField("Average BW in Byte/s", benchResult.Bandwidth).
 			WithField("Average latency in ms", benchResult.LatencyAvg).
@@ -220,7 +221,8 @@ func sumBenchmarkResults(results []common.BenchmarkResult) common.BenchmarkResul
 	ioCopyLatencyAverages := float64(0)
 	for _, result := range results {
 		sum.Bytes += result.Bytes
-		sum.Operations += result.Operations
+		sum.SuccessfulOperations += result.SuccessfulOperations
+		sum.FailedOperations += result.FailedOperations
 		latencyAverages += result.LatencyAvg
 		genBytesLatencyAverages += result.GenBytesLatencyAvg
 		ioCopyLatencyAverages += result.IOCopyLatencyAvg
@@ -248,7 +250,8 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 	if created {
 		err = csvwriter.Write([]string{
 			"testName",
-			"Total Operations",
+			"Successful Operations",
+			"Failed Operations",
 			"Total Bytes",
 			"Average Bandwidth in Bytes/s",
 			"Average Latency in ms",
@@ -266,7 +269,8 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 
 	err = csvwriter.Write([]string{
 		benchResult.TestName,
-		fmt.Sprintf("%.0f", benchResult.Operations),
+		fmt.Sprintf("%.0f", benchResult.SuccessfulOperations),
+		fmt.Sprintf("%.0f", benchResult.FailedOperations),
 		fmt.Sprintf("%.0f", benchResult.Bytes),
 		fmt.Sprintf("%f", benchResult.Bandwidth),
 		fmt.Sprintf("%f", benchResult.LatencyAvg),
