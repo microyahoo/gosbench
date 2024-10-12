@@ -31,20 +31,11 @@ data:
     #       - "alertmanager.gosbench.svc:9093"
 
     scrape_configs:
-      - job_name: 'gosbench-worker1'
+      - job_name: 'gosbench-worker'
         scrape_interval: 3s
         scrape_timeout: 3s
         static_configs:
-          - targets: ['10.3.11.81:7777']
-
-      - job_name: 'gosbench-worker2'
-        scrape_interval: 3s
-        scrape_timeout: 3s
-        static_configs:
-          - targets: ['10.3.11.82:7777']
-
-      - job_name: 'gosbench-worker3'
-        scrape_interval: 3s
-        scrape_timeout: 3s
-        static_configs:
-          - targets: ['10.3.11.83:7777']
+          - targets:
+            - 10.3.11.81:7777
+            - 10.3.11.82:7777
+            - 10.3.11.83:7777
