@@ -352,7 +352,7 @@ func (s *Server) generateResults(results []*common.BenchmarkResult) {
 			defer f.Close()
 			t.SetOutputMirror(f)
 		}
-		t.AppendHeader(table.Row{"type", "object-size(KB)", "wokers", "parallel-clients", "avg-bandwidth(MB/s)", "avg-latency(ms)",
+		t.AppendHeader(table.Row{"type", "object-size(KB)", "workers", "parallel-clients", "avg-bandwidth(MB/s)", "avg-latency(ms)",
 			"gen-bytes-avg-latency(ms)", "io-copy-avg-latency(ms)", "successful-ops", "failed-ops", "duration(s)", "total-mbytes", "name",
 		})
 		for _, r := range results {
@@ -436,7 +436,7 @@ func (s *Server) generateResults(results []*common.BenchmarkResult) {
 		Body:   f,
 	})
 	if e != nil {
-		log.Warningf("Failed to upload report to s3 bucket %s: %s", s.config.ReportConfig.Bucket, e)
+		log.WithError(e).Warningf("Failed to upload report file to s3 bucket %s", s.config.ReportConfig.Bucket)
 	}
 }
 
