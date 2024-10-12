@@ -101,12 +101,10 @@ func run() {
 		if err != nil {
 			log.WithError(err).Error("Issues with server connection")
 			time.Sleep(time.Second)
+		} else if os.Getenv(gosbenchInContainer) == "true" {
+			select {} // sleep forever in container!
 		} else {
-			if os.Getenv(gosbenchInContainer) == "true" {
-				select {} // sleep forever in container!
-			} else {
-				os.Exit(0)
-			}
+			os.Exit(0)
 		}
 	}
 }
@@ -357,7 +355,7 @@ func (w *Worker) fillWorkqueue() {
 				log.WithError(err).Fatalf("Problems when listing contents of bucket %s", bucketName)
 			}
 			preExistingObjectCount = uint64(len(preExistingObjects))
-			log.Debugf("Found %d objects in bucket %s", preExistingObjectCount, bucketName)
+			log.Infof("Found %d objects in bucket %s", preExistingObjectCount, bucketName)
 
 			if preExistingObjectCount <= 0 {
 				log.Warningf("There is no objects in bucket %s", bucketName)
