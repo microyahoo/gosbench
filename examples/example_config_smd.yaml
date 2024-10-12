@@ -47,7 +47,6 @@ grafana_config:
 tests:
   - name: write-4k
     # read_weight: 20
-    # existing_read_weight: 0
     # write_weight: 80
     # delete_weight: 0
     # list_weight: 0
@@ -91,7 +90,7 @@ tests:
       # chunk_size: 40
       # unit: MB
   - name: read-4k
-    existing_read_weight: 100
+    read_weight: 100
     objects:
       size_min: 4
       size_max: 4
@@ -140,7 +139,6 @@ tests:
     clean_after: True
   - name: write-64k
     # read_weight: 20
-    # existing_read_weight: 0
     # write_weight: 80
     # delete_weight: 0
     # list_weight: 0
@@ -184,7 +182,7 @@ tests:
       # chunk_size: 40
       # unit: MB
   - name: read-64k
-    existing_read_weight: 100
+    read_weight: 100
     objects:
       size_min: 64
       size_max: 64
@@ -232,7 +230,6 @@ tests:
     clean_after: True
   - name: write-4M
     # read_weight: 20
-    # existing_read_weight: 0
     # write_weight: 80
     # delete_weight: 0
     # list_weight: 0
@@ -276,7 +273,7 @@ tests:
       # chunk_size: 40
       # unit: MB
   - name: read-4M
-    existing_read_weight: 100
+    read_weight: 100
     objects:
       size_min: 4
       size_max: 4

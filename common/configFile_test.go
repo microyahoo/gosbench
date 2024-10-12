@@ -203,34 +203,6 @@ func Test_checkTestCase(t *testing.T) {
 				NumberDistribution: "constant",
 				Unit:               "XB",
 			}}}, true},
-		{"Existing object read without bucket prefix", args{&TestCaseConfiguration{Runtime: Duration(time.Second), OpsDeadline: 10, ExistingReadWeight: 1,
-			Buckets: struct {
-				NumberMin          uint64 `yaml:"number_min" json:"number_min"`
-				NumberMax          uint64 `yaml:"number_max" json:"number_max"`
-				NumberLast         uint64
-				NumberDistribution string `yaml:"number_distribution" json:"number_distribution"`
-			}{
-				NumberMin:          1,
-				NumberDistribution: "constant",
-			},
-			Objects: struct {
-				SizeMin            uint64 `yaml:"size_min" json:"size_min"`
-				SizeMax            uint64 `yaml:"size_max" json:"size_max"`
-				SizeLast           uint64
-				SizeDistribution   string `yaml:"size_distribution" json:"size_distribution"`
-				NumberMin          uint64 `yaml:"number_min" json:"number_min"`
-				NumberMax          uint64 `yaml:"number_max" json:"number_max"`
-				NumberLast         uint64
-				NumberDistribution string `yaml:"number_distribution" json:"number_distribution"`
-				Unit               string `yaml:"unit" json:"unit"`
-			}{
-				SizeMin:            1,
-				SizeMax:            2,
-				NumberMin:          3,
-				SizeDistribution:   "constant",
-				NumberDistribution: "constant",
-				Unit:               "XB",
-			}}}, true},
 		{"All good", args{&TestCaseConfiguration{Runtime: Duration(time.Second), OpsDeadline: 10, ReadWeight: 1,
 			Buckets: struct {
 				NumberMin          uint64 `yaml:"number_min" json:"number_min"`

@@ -159,7 +159,6 @@ data:
     tests:
       - name: write-4m
         # read_weight: 20
-        # existing_read_weight: 0
         # write_weight: 80
         # delete_weight: 0
         # list_weight: 0
@@ -204,7 +203,7 @@ data:
           # chunk_size: 40
           # unit: MB
       - name: read-4m
-        existing_read_weight: 100
+        read_weight: 100
         objects:
           size_min: 4
           size_max: 4
