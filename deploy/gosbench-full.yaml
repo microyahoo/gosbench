@@ -1,0 +1,2622 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gosbench-server
+  namespace: gosbench
+  labels:
+    app: gosbench-server
+    stack: gosbench
+    type: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gosbench-server
+  template:
+    metadata:
+      labels:
+        app: gosbench-server
+        stack: gosbench
+        type: server
+    spec:
+      hostNetwork: true
+      containers:
+        - name: gobench-server
+          image: reg.deeproute.ai/deeproute-public/tools/gosbench-server:latest # need update
+          imagePullPolicy: Always
+          # image: ubuntu
+          # imagePullPolicy: IfNotPresent
+          # command: ["/bin/bash", "-c", "--"]
+          # args: [ "while true; do sleep 30; done;" ]
+          env:
+          - name: CONFIGFILE
+            value: "/config/config.yaml"
+          - name: SERVERPORT
+            value: "2000"
+          - name: DEBUG
+            value: "false"
+          - name: TRACE
+            value: "false"
+          ports:
+            - containerPort: 2000
+          #   - containerPort: 2001
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: config
+            mountPath: /config/
+      volumes:
+      - name: config
+        configMap:
+          name: gosbench-config
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: gosbench-worker
+  namespace: gosbench
+  labels:
+    k8s-app: gosbench-worker
+spec: 
+  selector:
+    matchLabels:
+      name: gosbench-worker
+  template:
+    metadata:
+      labels:
+        name: gosbench-worker
+    spec:
+      # tolerations:
+      # - effect: NoSchedule
+      #   key: node-role.kubernetes.io/master
+      #hostNetwork: true
+      containers:
+        - name: gosbench-worker
+          image: reg.deeproute.ai/deeproute-public/tools/gosbench-worker:latest # need update
+          imagePullPolicy: "Always"
+          env:
+          - name: GATEWAY_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: GOSBENCH_IN_CONTAINER
+            value: "true"
+          - name: PROMETHEUSPORT
+            value: "8888"
+          - name: SERVERADDRESS
+            value: "gosbench-server:2000"
+          - name: DEBUG
+            value: "false"
+          - name: TRACE
+            value: "false"
+          # resources:
+          #   limits:
+          #     memory: 200Mi
+          #     cpu: 200m
+          #   requests:
+          #     cpu: 10m
+          #     memory: 10Mi
+          ports:
+            - containerPort: 8888
+              hostPort:  7777  # expose as host port
+          securityContext:
+            privileged: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gosbench-server
+  namespace: gosbench
+  labels:
+    app: gosbench-server
+    stack: gosbench
+spec:
+  type: NodePort
+  ports:
+    - name: gosbench-server
+      port: 2000
+      targetPort: 2000
+  selector:
+    app: gosbench-server
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gosbench-config
+  namespace: gosbench
+data:
+  config.yaml: |
+    s3_configs:
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.221:80
+        skipSSLverify: true
+        name: bd-ssd10-node11
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.222:80
+        skipSSLverify: true
+        name: bd-ssd10-node12
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.223:80
+        skipSSLverify: true
+        name: bd-ssd10-node13
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.224:80
+        skipSSLverify: true
+        name: bd-ssd10-node14
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.225:80
+        skipSSLverify: true
+        name: bd-ssd10-node15
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.226:80
+        skipSSLverify: true
+        name: bd-ssd10-node16
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.227:80
+        skipSSLverify: true
+        name: bd-ssd10-node17
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.228:80
+        skipSSLverify: true
+        name: bd-ssd10-node18
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.229:80
+        skipSSLverify: true
+        name: bd-ssd10-node19
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.230:80
+        skipSSLverify: true
+        name: bd-ssd10-node20
+    
+    # For generating annotations when we start/stop testcases
+    # https://grafana.com/docs/http_api/annotations/#create-annotation
+    grafana_config:
+      endpoint: http://grafana
+      username: admin
+      password: grafana
+    
+    tests:
+      - name: write-4k-4threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 4
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4k-4threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4k-4threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: True
+      - name: write-4k-8threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 8
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4k-8threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4k-8threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: True
+      - name: write-4k-16threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 16
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4k-16threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4k-16threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: True
+      - name: write-4k-32threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 32
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4k-32threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4k-32threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: True
+      - name: write-4k-64threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 64
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4k-64threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: write-8k-4threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 4
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-8k-4threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-8k-4threads
+        delete_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: True
+      - name: write-8k-8threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 8
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-8k-8threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-8k-8threads
+        delete_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: True
+      - name: write-8k-16threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 16
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-8k-16threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-8k-16threads
+        delete_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: True
+      - name: write-8k-32threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 32
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-8k-32threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-8k-32threads
+        delete_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: True
+      - name: write-8k-64threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 64
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-8k-64threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-8k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 8
+          size_max: 8
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-8k-
+        object_prefix: obj-8k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: write-64k-4threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 4
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-64k-4threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-64k-4threads
+        delete_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: True
+      - name: write-64k-8threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 8
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-64k-8threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-64k-8threads
+        delete_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: True
+      - name: write-64k-16threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 16
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-64k-16threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-64k-16threads
+        delete_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: True
+      - name: write-64k-32threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 32
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-64k-32threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-64k-32threads
+        delete_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: True
+      - name: write-64k-64threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 64
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-64k-64threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-64k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: write-256k-4threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 4
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-256k-4threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-256k-4threads
+        delete_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: True
+      - name: write-256k-8threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 8
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-256k-8threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-256k-8threads
+        delete_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: True
+      - name: write-256k-16threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 16
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-256k-16threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-256k-16threads
+        delete_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: True
+      - name: write-256k-32threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 32
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-256k-32threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-256k-32threads
+        delete_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: True
+      - name: write-256k-64threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 64
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-256k-64threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        oneshot: true
+        #stop_with_ops: 10000
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-256k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: write-4m-4threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 4
+        payload_generator: random # random or empty
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4m-4threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4m-4threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 4
+        clean_after: True
+      - name: write-4m-8threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 8
+        payload_generator: random # random or empty
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4m-8threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4m-8threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 8
+        clean_after: True
+      - name: write-4m-16threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 16
+        payload_generator: random # random or empty
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4m-16threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4m-16threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 16
+        clean_after: True
+      - name: write-4m-32threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 32
+        payload_generator: random # random or empty
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4m-32threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4m-32threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 32
+        clean_after: True
+      - name: write-4m-64threads
+        # read_weight: 20
+        # existing_read_weight: 0
+        # write_weight: 80
+        # delete_weight: 0
+        # list_weight: 0
+        write_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          # distribution: constant, random, sequential
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          # distribution: constant, random, sequential
+          number_distribution: sequential
+        # Name prefix for buckets and objects
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        # End after a set amount of time
+        # Runtime in time.Duration - do not forget the unit please
+        # stop_with_runtime: 60s # Example with 60 seconds runtime, may traverse the workqueue multiple times
+        # End after a set amount of operations (per worker)
+        #stop_with_ops: 10000
+        oneshot: true
+        # Number of s3 performance test servers to run in parallel
+        workers: 10
+        # Set wheter workers share the same buckets or not
+        # If set to True - bucket names will have the worker # appended
+        workers_share_buckets: True
+        # Number of requests processed in parallel by each worker
+        parallel_clients: 64
+        payload_generator: random # random or empty
+        # Remove all generated buckets and its content after run
+        # clean_after: True
+        clean_after: False
+        write_option:
+          # max_upload_parts: 10000
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: read-4m-64threads
+        # existing_read_weight: 100
+        read_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: random
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: False
+        read_option:
+          # concurrency: 4
+          # chunk_size: 40
+          # unit: MB
+      - name: clean-4m-64threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 1000000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+---
