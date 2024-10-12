@@ -117,6 +117,7 @@ type BenchmarkResult struct {
 	Bandwidth          float64
 	LatencyAvg         float64
 	GenBytesLatencyAvg float64
+	IOCopyLatencyAvg   float64
 	Duration           time.Duration
 }
 

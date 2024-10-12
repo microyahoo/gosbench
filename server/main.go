@@ -217,15 +217,18 @@ func sumBenchmarkResults(results []common.BenchmarkResult) common.BenchmarkResul
 	bandwidthAverages := float64(0)
 	latencyAverages := float64(0)
 	genBytesLatencyAverages := float64(0)
+	ioCopyLatencyAverages := float64(0)
 	for _, result := range results {
 		sum.Bytes += result.Bytes
 		sum.Operations += result.Operations
 		latencyAverages += result.LatencyAvg
 		genBytesLatencyAverages += result.GenBytesLatencyAvg
+		ioCopyLatencyAverages += result.IOCopyLatencyAvg
 		bandwidthAverages += result.Bandwidth
 	}
 	sum.LatencyAvg = latencyAverages / float64(len(results))
 	sum.GenBytesLatencyAvg = genBytesLatencyAverages / float64(len(results))
+	sum.IOCopyLatencyAvg = ioCopyLatencyAverages / float64(len(results))
 	sum.TestName = results[0].TestName
 	sum.Bandwidth = bandwidthAverages
 
@@ -250,6 +253,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 			"Average Bandwidth in Bytes/s",
 			"Average Latency in ms",
 			"Gen Bytes Average Latency in ms",
+			"IO Copy Average Latency in ms",
 			"Workers",
 			"Parallel clients",
 			"Test duration seen by server in seconds",
@@ -267,6 +271,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 		fmt.Sprintf("%f", benchResult.Bandwidth),
 		fmt.Sprintf("%f", benchResult.LatencyAvg),
 		fmt.Sprintf("%f", benchResult.GenBytesLatencyAvg),
+		fmt.Sprintf("%f", benchResult.IOCopyLatencyAvg),
 		fmt.Sprintf("%f", benchResult.Workers),
 		fmt.Sprintf("%f", benchResult.ParallelClients),
 		fmt.Sprintf("%f", benchResult.Duration.Seconds()),
