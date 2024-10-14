@@ -110,7 +110,12 @@ type TestConf struct {
 	S3Configs     []*S3Configuration       `yaml:"s3_configs" json:"s3_configs"`
 	GrafanaConfig *GrafanaConfiguration    `yaml:"grafana_config" json:"grafana_config"`
 	ReportConfig  *ReportConfiguration     `yaml:"report_config" json:"report_config"`
+	GlobalConfig  *GlobalConfiguration     `yaml:"global_config" json:"global_config"`
 	Tests         []*TestCaseConfiguration `yaml:"tests" json:"tests"`
+}
+
+type GlobalConfiguration struct {
+	ClientGatewayColocation bool `yaml:"client_gateway_colocation" json:"client_gateway_colocation"`
 }
 
 type ReportConfiguration struct {
@@ -122,10 +127,11 @@ type ReportConfiguration struct {
 // WorkerConf is the configuration that is sent to each worker
 // It includes a subset of information from the Testconf
 type WorkerConf struct {
-	S3Configs []*S3Configuration
-	Test      *TestCaseConfiguration
-	WorkerID  string
-	ID        int
+	S3Configs               []*S3Configuration
+	Test                    *TestCaseConfiguration
+	WorkerID                string
+	ID                      int
+	ClientGatewayColocation bool
 }
 
 // BenchResult is the struct that will contain the benchmark results from a

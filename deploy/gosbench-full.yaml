@@ -191,6 +191,9 @@ data:
         skipSSLverify: true
         name: bd-ssd10-node20
 
+    global_config:
+      client_gateway_colocation: true # controls whether the client and gateway are on the same node
+
     report_config:
       format: csv # csv, md or html
       bucket: test

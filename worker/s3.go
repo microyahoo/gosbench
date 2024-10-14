@@ -28,21 +28,26 @@ var (
 
 // initS3 initialises the S3 session
 func (w *Worker) initS3() {
-	config := w.config.S3Configs[w.config.ID%len(w.config.S3Configs)]
+	id := w.config.ID
 
 	gatewayName := os.Getenv("GATEWAY_NAME")
 	if gatewayName == "" {
 		gatewayName, _ = os.Hostname()
 	}
 	if gatewayName != "" {
-		// prefer to select s3 gateway of the host machine
-		for _, conf := range w.config.S3Configs {
+		// prefer to select s3 gateway of the host machine if enable client and gateway colocation
+		for i, conf := range w.config.S3Configs {
 			if conf.Name == gatewayName {
-				config = conf
+				if w.config.ClientGatewayColocation {
+					id = i
+				} else {
+					id = i + 1
+				}
 				break
 			}
 		}
 	}
+	config := w.config.S3Configs[id%len(w.config.S3Configs)]
 
 	log.Infof("s3 config info for worker %s: %+v", w.config.WorkerID, config)
 

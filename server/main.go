@@ -126,7 +126,15 @@ func run() {
 }
 
 func (s *Server) scheduleTests() {
-	var results []*common.BenchmarkResult
+	var (
+		clientGatewayColocation = true
+		results                 []*common.BenchmarkResult
+	)
+	gc := s.config.GlobalConfig
+	if gc != nil && !gc.ClientGatewayColocation {
+		clientGatewayColocation = false
+	}
+
 	for testNumber, test := range s.config.Tests {
 		doneChannel := make(chan bool, test.Workers)
 		resultChannel := make(chan common.BenchmarkResult, test.Workers)
@@ -134,10 +142,11 @@ func (s *Server) scheduleTests() {
 
 		for worker := 0; worker < test.Workers; worker++ {
 			workerConfig := &common.WorkerConf{
-				Test:      test,
-				S3Configs: s.config.S3Configs,
-				WorkerID:  fmt.Sprintf("w%d", worker),
-				ID:        worker,
+				Test:                    test,
+				S3Configs:               s.config.S3Configs,
+				WorkerID:                fmt.Sprintf("w%d", worker),
+				ID:                      worker,
+				ClientGatewayColocation: clientGatewayColocation,
 			}
 			workerConnection := <-readyWorkers
 			log.WithField("Worker", (*workerConnection).RemoteAddr()).Infof("We found worker %d / %d for test %d", worker+1, test.Workers, testNumber)
