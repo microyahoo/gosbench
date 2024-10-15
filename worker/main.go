@@ -140,7 +140,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			w.config = config
 			w.parallelClients = w.config.Test.ParallelClients
 			w.workQueue.Queue = nil // reset work queue
-			log.Infof("Got config %+v from server - starting preparations now", config.Test)
+			log.Infof("Got config %+v for worker %s from server with client_gateway_colocation(%t)- starting preparations now", config.Test, config.WorkerID, config.ClientGatewayColocation)
 
 			w.initS3()
 			w.fillWorkqueue()
@@ -168,7 +168,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			duration := w.perfTest()
 			benchResults := w.getCurrentPromValues()
 			benchResults.Duration = duration
-			benchResults.Bandwidth = benchResults.Bytes / duration.Seconds()
+			benchResults.BandwidthAvg = benchResults.Bytes / duration.Seconds()
 			log.Infof("PROM VALUES %+v", benchResults)
 			err = encoder.Encode(common.WorkerMessage{Message: "work done", BenchResult: benchResults})
 			if err != nil {

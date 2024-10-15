@@ -14,15 +14,31 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// This uses the Base 2 calculation where
-// 1 kB = 1024 Byte
+type Type int
+
 const (
-	BYTE = 1 << (10 * iota)
-	KILOBYTE
-	MEGABYTE
-	GIGABYTE
-	TERABYTE
+	Read Type = 1 << iota
+	Write
+	Delete
+	List
 )
+
+func (t Type) String() string {
+	var types []string
+	if t&Read != 0 {
+		types = append(types, "read")
+	}
+	if t&Write != 0 {
+		types = append(types, "write")
+	}
+	if t&Delete != 0 {
+		types = append(types, "delete")
+	}
+	if t&List != 0 {
+		types = append(types, "list")
+	}
+	return strings.Join(types, ",")
+}
 
 // S3Configuration contains all information to connect to a certain S3 endpoint
 type S3Configuration struct {
@@ -93,16 +109,29 @@ type S3Option struct {
 type TestConf struct {
 	S3Configs     []*S3Configuration       `yaml:"s3_configs" json:"s3_configs"`
 	GrafanaConfig *GrafanaConfiguration    `yaml:"grafana_config" json:"grafana_config"`
+	ReportConfig  *ReportConfiguration     `yaml:"report_config" json:"report_config"`
+	GlobalConfig  *GlobalConfiguration     `yaml:"global_config" json:"global_config"`
 	Tests         []*TestCaseConfiguration `yaml:"tests" json:"tests"`
+}
+
+type GlobalConfiguration struct {
+	ClientGatewayColocation bool `yaml:"client_gateway_colocation" json:"client_gateway_colocation"`
+}
+
+type ReportConfiguration struct {
+	Format   string           `yaml:"format" json:"format"` // md, csv or html
+	Bucket   string           `yaml:"bucket" json:"bucket"` // report will upload to s3 bucket to persist
+	S3Config *S3Configuration `yaml:"s3_config" json:"s3_config"`
 }
 
 // WorkerConf is the configuration that is sent to each worker
 // It includes a subset of information from the Testconf
 type WorkerConf struct {
-	S3Configs []*S3Configuration
-	Test      *TestCaseConfiguration
-	WorkerID  string
-	ID        int
+	S3Configs               []*S3Configuration
+	Test                    *TestCaseConfiguration
+	WorkerID                string
+	ID                      int
+	ClientGatewayColocation bool
 }
 
 // BenchResult is the struct that will contain the benchmark results from a
@@ -114,12 +143,14 @@ type BenchmarkResult struct {
 	Workers              float64
 	ParallelClients      float64
 	Bytes                float64
-	// Bandwidth is the amount of Bytes per second of runtime
-	Bandwidth          float64
+	// BandwidthAvg is the amount of Bytes per second of runtime
+	BandwidthAvg       float64
 	LatencyAvg         float64
 	GenBytesLatencyAvg float64
 	IOCopyLatencyAvg   float64
 	Duration           time.Duration
+	Type               Type
+	ObjectSize         uint64
 }
 
 // WorkerMessage is the struct that is exchanged in the communication between
@@ -133,11 +164,14 @@ type WorkerMessage struct {
 
 // CheckConfig checks the global config
 func CheckConfig(config *TestConf) {
+	if len(config.S3Configs) == 0 {
+		log.WithError(fmt.Errorf("s3 configs need to be set")).Fatalf("Issue detected when scanning through the s3 configs")
+	}
 	for _, testcase := range config.Tests {
 		// log.Debugf("Checking testcase with prefix %s", testcase.BucketPrefix)
 		err := checkTestCase(testcase)
 		if err != nil {
-			log.WithError(err).Fatalf("Issue detected when scanning through the config file:")
+			log.WithError(err).Fatalf("Issue detected when scanning through the config file")
 		}
 	}
 }
@@ -181,13 +215,13 @@ func checkTestCase(testcase *TestCaseConfiguration) error {
 		switch strings.ToUpper(unit) {
 		case "B":
 			return BYTE, nil
-		case "KB", "K":
+		case "KB", "K", "KIB":
 			return KILOBYTE, nil
-		case "MB", "M":
+		case "MB", "M", "MIB":
 			return MEGABYTE, nil
-		case "GB", "G":
+		case "GB", "G", "GIB":
 			return GIGABYTE, nil
-		case "TB", "T":
+		case "TB", "T", "TIB":
 			return TERABYTE, nil
 		default:
 			return 0, fmt.Errorf("Could not parse unit size - please use one of B/KB/MB/GB/TB")

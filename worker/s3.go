@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -12,14 +11,11 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	s3config "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/plugin/ochttp"
 
 	"github.com/mulbc/gosbench/common"
 )
@@ -32,75 +28,49 @@ var (
 
 // initS3 initialises the S3 session
 func (w *Worker) initS3() {
-	config := w.config.S3Configs[w.config.ID%len(w.config.S3Configs)]
+	id := w.config.ID
 
 	gatewayName := os.Getenv("GATEWAY_NAME")
 	if gatewayName == "" {
 		gatewayName, _ = os.Hostname()
 	}
 	if gatewayName != "" {
-		// prefer to select s3 gateway of the host machine
-		for _, conf := range w.config.S3Configs {
+		// prefer to select s3 gateway of the host machine if enable client and gateway colocation
+		for i, conf := range w.config.S3Configs {
 			if conf.Name == gatewayName {
-				config = conf
+				if w.config.ClientGatewayColocation {
+					id = i
+				} else {
+					id = i + 1
+				}
 				break
 			}
 		}
 	}
+	config := w.config.S3Configs[id%len(w.config.S3Configs)]
 
 	log.Infof("s3 config info for worker %s: %+v", w.config.WorkerID, config)
-
-	// All clients require a Session. The Session provides the client with
-	// shared configuration such as region, endpoint, and credentials. A
-	// Session should be shared where possible to take advantage of
-	// configuration and credential caching. See the session package for
-	// more information.
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.SkipSSLVerify},
-	}
-	tr2 := &ochttp.Transport{Base: tr}
-	hc = &http.Client{
-		Transport: tr2,
-	}
 
 	// TODO Create a context with a timeout - we already use this context in all S3 calls
 	// Usually this shouldn't be a problem ;)
 	ctx = context.Background()
 
-	cfg, err := s3config.LoadDefaultConfig(ctx,
-		s3config.WithHTTPClient(hc),
-		s3config.WithRegion(config.Region),
-		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(config.AccessKey, config.SecretKey, "")),
-	)
-	if err != nil {
-		log.WithError(err).Fatal("Unable to build S3 config")
-	}
-	// Use this Session to do things that are hidden from the performance monitoring
-	// Setting up the housekeeping S3 client
-	hkhc := &http.Client{
-		Transport: tr,
-	}
-
-	hkCfg, err := s3config.LoadDefaultConfig(ctx,
-		s3config.WithHTTPClient(hkhc),
-		s3config.WithRegion(config.Region),
-		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(config.AccessKey, config.SecretKey, "")),
-	)
-	if err != nil {
-		log.WithError(err).Fatal("Unable to build S3 housekeeping config")
-	}
+	var err error
 
 	// Create a new instance of the service's client with a Session.
 	// Optional aws.Config values can also be provided as variadic arguments
 	// to the New function. This option allows you to provide service
 	// specific configuration.
-	svc = s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(config.Endpoint)
-	})
+	svc, err = common.NewS3Client(ctx, config.Endpoint, config.AccessKey, config.SecretKey, config.Region, config.SkipSSLVerify, false)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to build S3 config")
+	}
+
 	// Use this service to do things that are hidden from the performance monitoring
-	housekeepingSvc = s3.NewFromConfig(hkCfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(config.Endpoint)
-	})
+	housekeepingSvc, err = common.NewS3Client(ctx, config.Endpoint, config.AccessKey, config.SecretKey, config.Region, config.SkipSSLVerify, true)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to build S3 config")
+	}
 
 	log.Info("S3 Init done")
 }
