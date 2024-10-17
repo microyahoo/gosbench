@@ -225,7 +225,7 @@ func executeTestOnWorker(conn *net.Conn, config *common.WorkerConf, doneChannel 
 			(*conn).Close()
 			return
 		}
-		log.Infof("Response: %+v", response)
+		log.Infof("Response: %+v from %s", response, (*conn).RemoteAddr())
 		switch response.Message {
 		case "preparations done":
 			doneChannel <- true

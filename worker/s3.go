@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 var (
 	svc, housekeepingSvc *s3.Client
 	ctx                  context.Context
-	hc                   *http.Client
 )
 
 // initS3 initialises the S3 session
@@ -48,6 +46,7 @@ func (w *Worker) initS3() {
 		}
 	}
 	config := w.config.S3Configs[id%len(w.config.S3Configs)]
+	w.s3Endpoint = config.Endpoint
 
 	log.Infof("s3 config info for worker %s: %+v", w.config.WorkerID, config)
 

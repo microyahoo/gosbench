@@ -112,6 +112,7 @@ type Worker struct {
 	workQueue       *WorkQueue
 	parallelClients int
 	config          common.WorkerConf
+	s3Endpoint      string // just for debug
 }
 
 func (w *Worker) connectToServer(serverAddress string) error {
@@ -140,6 +141,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			w.config = config
 			w.parallelClients = w.config.Test.ParallelClients
 			w.workQueue.Queue = nil // reset work queue
+			w.s3Endpoint = ""
 			log.Infof("Got config %+v for worker %s from server with client_gateway_colocation(%t)- starting preparations now", config.Test, config.WorkerID, config.ClientGatewayColocation)
 
 			w.initS3()
@@ -169,6 +171,7 @@ func (w *Worker) connectToServer(serverAddress string) error {
 			benchResults := w.getCurrentPromValues()
 			benchResults.Duration = duration
 			benchResults.BandwidthAvg = benchResults.Bytes / duration.Seconds()
+			benchResults.S3Endpoint = w.s3Endpoint
 			log.Infof("PROM VALUES %+v", benchResults)
 			err = encoder.Encode(common.WorkerMessage{Message: "work done", BenchResult: benchResults})
 			if err != nil {
