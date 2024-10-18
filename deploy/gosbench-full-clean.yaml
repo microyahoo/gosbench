@@ -1,0 +1,421 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gosbench-server
+  namespace: gosbench
+  labels:
+    app: gosbench-server
+    stack: gosbench
+    type: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gosbench-server
+  template:
+    metadata:
+      labels:
+        app: gosbench-server
+        stack: gosbench
+        type: server
+    spec:
+      hostNetwork: true
+      containers:
+        - name: gobench-server
+          image: reg.deeproute.ai/deeproute-public/tools/gosbench-server:latest # need update
+          imagePullPolicy: Always
+          # image: ubuntu
+          # imagePullPolicy: IfNotPresent
+          # command: ["/bin/bash", "-c", "--"]
+          # args: [ "while true; do sleep 30; done;" ]
+          env:
+          - name: CONFIGFILE
+            value: "/config/config.yaml"
+          - name: SERVERPORT
+            value: "2000"
+          - name: DEBUG
+            value: "false"
+          - name: TRACE
+            value: "false"
+          ports:
+            - containerPort: 2000
+          #   - containerPort: 2001
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: config
+            mountPath: /config/
+      volumes:
+      - name: config
+        configMap:
+          name: gosbench-config
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: gosbench-worker
+  namespace: gosbench
+  labels:
+    k8s-app: gosbench-worker
+spec: 
+  selector:
+    matchLabels:
+      name: gosbench-worker
+  template:
+    metadata:
+      labels:
+        name: gosbench-worker
+    spec:
+      # tolerations:
+      # - effect: NoSchedule
+      #   key: node-role.kubernetes.io/master
+      #hostNetwork: true
+      containers:
+        - name: gosbench-worker
+          image: reg.deeproute.ai/deeproute-public/tools/gosbench-worker:latest # need update
+          imagePullPolicy: "Always"
+          env:
+          - name: GATEWAY_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: GOSBENCH_IN_CONTAINER
+            value: "true"
+          - name: PROMETHEUSPORT
+            value: "8888"
+          - name: SERVERADDRESS
+            value: "gosbench-server:2000"
+          - name: DEBUG
+            value: "false"
+          - name: TRACE
+            value: "false"
+          # resources:
+          #   limits:
+          #     memory: 200Mi
+          #     cpu: 200m
+          #   requests:
+          #     cpu: 10m
+          #     memory: 10Mi
+          ports:
+            - containerPort: 8888
+              hostPort:  7777  # expose as host port
+          securityContext:
+            privileged: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gosbench-server
+  namespace: gosbench
+  labels:
+    app: gosbench-server
+    stack: gosbench
+spec:
+  type: NodePort
+  ports:
+    - name: gosbench-server
+      port: 2000
+      targetPort: 2000
+  selector:
+    app: gosbench-server
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gosbench-config
+  namespace: gosbench
+data:
+  config.yaml: |
+    s3_configs:
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.231:80
+        skipSSLverify: true
+        name: bd-ssd10-node21
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.232:80
+        skipSSLverify: true
+        name: bd-ssd10-node22
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.233:80
+        skipSSLverify: true
+        name: bd-ssd10-node23
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.234:80
+        skipSSLverify: true
+        name: bd-ssd10-node24
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.235:80
+        skipSSLverify: true
+        name: bd-ssd10-node25
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.236:80
+        skipSSLverify: true
+        name: bd-ssd10-node26
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.237:80
+        skipSSLverify: true
+        name: bd-ssd10-node27
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.238:80
+        skipSSLverify: true
+        name: bd-ssd10-node28
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.239:80
+        skipSSLverify: true
+        name: bd-ssd10-node29
+      - access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.240:80
+        skipSSLverify: true
+        name: bd-ssd10-node30
+
+    global_config:
+      client_gateway_colocation: true
+
+    report_config:
+      format: csv # csv, md or html
+      bucket: test
+      s3_config:
+        access_key: testy
+        secret_key: testy
+        region: us-east-1
+        endpoint: http://10.3.9.221:80
+        skipSSLverify: true
+    
+    # For generating annotations when we start/stop testcases
+    # https://grafana.com/docs/http_api/annotations/#create-annotation
+    grafana_config:
+      endpoint: http://grafana
+      username: admin
+      password: grafana
+    
+    tests:
+      - name: clean-4k-128threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4k-
+        object_prefix: obj-4k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 128
+        clean_after: True
+      - name: clean-16k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 16
+          size_max: 16
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-16k-
+        object_prefix: obj-16k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-32k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 32
+          size_max: 32
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-32k-
+        object_prefix: obj-32k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-64k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 64
+          size_max: 64
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-64k-
+        object_prefix: obj-64k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-128k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 128
+          size_max: 128
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-128k-
+        object_prefix: obj-128k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-256k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 256
+          size_max: 256
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-256k-
+        object_prefix: obj-256k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-512k-64threads
+        delete_weight: 100
+        objects:
+          size_min: 512
+          size_max: 512
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-512k-
+        object_prefix: obj-512k-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-1m-64threads
+        delete_weight: 100
+        objects:
+          size_min: 1024
+          size_max: 1024
+          size_distribution: constant
+          unit: KB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-1m-
+        object_prefix: obj-1m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
+      - name: clean-4m-64threads
+        delete_weight: 100
+        objects:
+          size_min: 4
+          size_max: 4
+          size_distribution: constant
+          unit: MB
+          number_min: 1
+          number_max: 100000
+          number_distribution: sequential
+        buckets:
+          number_min: 1
+          number_max: 1
+          number_distribution: sequential
+        bucket_prefix: gosbench-prefix-4m-
+        object_prefix: obj-4m-
+        #stop_with_ops: 10000
+        oneshot: true
+        skip_prepare: true
+        workers: 10
+        workers_share_buckets: True
+        parallel_clients: 64
+        clean_after: True
