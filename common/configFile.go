@@ -151,6 +151,7 @@ type BenchmarkResult struct {
 	Duration           time.Duration
 	Type               Type
 	ObjectSize         uint64
+	S3Endpoint         string // just for debug
 }
 
 // WorkerMessage is the struct that is exchanged in the communication between
