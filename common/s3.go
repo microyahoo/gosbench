@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/ratelimit"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	s3config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -21,6 +23,9 @@ func NewS3Client(ctx context.Context, endpoint, accessKey, secretKey string, reg
 	// more information.
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSSLVerify},
+		// dial tcp 10.3.9.232:80: connect: cannot assign requested address
+		// https://github.com/golang/go/issues/16012
+		MaxIdleConnsPerHost: 100,
 	}
 	var hc *http.Client
 	if skipStats {
@@ -33,6 +38,14 @@ func NewS3Client(ctx context.Context, endpoint, accessKey, secretKey string, reg
 	}
 
 	cfg, err := s3config.LoadDefaultConfig(ctx,
+		s3config.WithRetryer(func() aws.Retryer {
+			return retry.NewStandard(func(o *retry.StandardOptions) {
+				// In high concurrency scenarios, the AWS SDK experiences a large number of errors of
+				// "failed to get rate limit token, retry quota exceeded, 0 available, 5 requested"
+				// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/retries-timeouts/#client-side-rate-limiting
+				o.RateLimiter = ratelimit.None
+			})
+		}),
 		s3config.WithHTTPClient(hc),
 		s3config.WithRegion(region),
 		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
