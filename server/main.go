@@ -197,7 +197,8 @@ func (s *Server) scheduleTests() {
 			WithField("Gen Bytes Average latency in ms", benchResult.GenBytesLatencyAvg).
 			WithField("Workers", benchResult.Workers).
 			WithField("Type", benchResult.Type).
-			WithField("Object size (not exact)", common.ByteSize(benchResult.ObjectSize)). // TODO: not exact
+			WithField("Object size(not exact)", common.ByteSize(benchResult.ObjectSize)).          // TODO: not exact
+			WithField("Ops(not exact)", benchResult.BandwidthAvg/float64(benchResult.ObjectSize)). // TODO: not exact
 			WithField("Parallel clients", benchResult.ParallelClients).
 			WithField("Test runtime on server", benchResult.Duration).
 			Infof("PERF RESULTS")
@@ -287,6 +288,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 			"Failed Operations",
 			"Total Bytes",
 			"Average Bandwidth in Bytes/s",
+			"Op/s",
 			"Average Latency in ms",
 			"Gen Bytes Average Latency in ms",
 			"IO Copy Average Latency in ms",
@@ -306,6 +308,7 @@ func writeResultToCSV(benchResult common.BenchmarkResult) {
 		fmt.Sprintf("%.0f", benchResult.FailedOperations),
 		fmt.Sprintf("%.0f", benchResult.Bytes),
 		fmt.Sprintf("%f", benchResult.BandwidthAvg),
+		fmt.Sprintf("%.2f", benchResult.BandwidthAvg/float64(benchResult.ObjectSize)),
 		fmt.Sprintf("%f", benchResult.LatencyAvg),
 		fmt.Sprintf("%f", benchResult.GenBytesLatencyAvg),
 		fmt.Sprintf("%f", benchResult.IOCopyLatencyAvg),
@@ -361,7 +364,7 @@ func (s *Server) generateResults(results []*common.BenchmarkResult) {
 			defer f.Close()
 			t.SetOutputMirror(f)
 		}
-		t.AppendHeader(table.Row{"type", "object-size(KB)", "workers", "parallel-clients", "avg-bandwidth(MB/s)", "avg-latency(ms)",
+		t.AppendHeader(table.Row{"type", "object-size(KB)", "workers", "parallel-clients", "avg-bandwidth(MB/s)", "ops", "avg-latency(ms)",
 			"gen-bytes-avg-latency(ms)", "io-copy-avg-latency(ms)", "successful-ops", "failed-ops", "duration(s)", "total-mbytes", "name",
 		})
 		for _, r := range results {
@@ -371,6 +374,7 @@ func (s *Server) generateResults(results []*common.BenchmarkResult) {
 				r.Workers,
 				r.ParallelClients,
 				fmt.Sprintf("%.1f", r.BandwidthAvg/1024/1024),
+				fmt.Sprintf("%.2f", r.BandwidthAvg/float64(r.ObjectSize)),
 				fmt.Sprintf("%.2f", r.LatencyAvg),
 				fmt.Sprintf("%.2f", r.GenBytesLatencyAvg),
 				fmt.Sprintf("%.2f", r.IOCopyLatencyAvg),
@@ -395,6 +399,7 @@ func (s *Server) generateResults(results []*common.BenchmarkResult) {
 			{Number: 11, Align: text.AlignCenter},
 			{Number: 12, Align: text.AlignCenter},
 			{Number: 13, Align: text.AlignCenter},
+			{Number: 14, Align: text.AlignCenter},
 		})
 		t.SortBy([]table.SortBy{
 			{
