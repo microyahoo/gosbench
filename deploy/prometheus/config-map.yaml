@@ -31,11 +31,32 @@ data:
     #       - "alertmanager.gosbench.svc:9093"
 
     scrape_configs:
-      - job_name: 'gosbench-worker'
+      - job_name: 'gosbench-workers'
         scrape_interval: 3s
         scrape_timeout: 3s
         static_configs:
-          - targets:
-            - 10.3.11.81:7777
-            - 10.3.11.82:7777
-            - 10.3.11.83:7777
+          - targets: ['10.3.9.221:7777']
+          - targets: ['10.3.9.222:7777']
+          - targets: ['10.3.9.223:7777']
+          - targets: ['10.3.9.224:7777']
+          - targets: ['10.3.9.225:7777']
+          - targets: ['10.3.9.226:7777']
+          - targets: ['10.3.9.227:7777']
+          - targets: ['10.3.9.228:7777']
+          - targets: ['10.3.9.229:7777']
+          - targets: ['10.3.9.230:7777']
+
+      - job_name: 'node-exporters'
+        scrape_interval: 3s
+        scrape_timeout: 3s
+        static_configs:
+          - targets: ['10.3.9.221:9100']
+          - targets: ['10.3.9.222:9100']
+          - targets: ['10.3.9.223:9100']
+          - targets: ['10.3.9.224:9100']
+          - targets: ['10.3.9.225:9100']
+          - targets: ['10.3.9.226:9100']
+          - targets: ['10.3.9.227:9100']
+          - targets: ['10.3.9.228:9100']
+          - targets: ['10.3.9.229:9100']
+          - targets: ['10.3.9.230:9100']
