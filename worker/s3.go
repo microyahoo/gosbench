@@ -184,6 +184,7 @@ func getObject(service *s3.Client, conf *common.TestCaseConfiguration, op *BaseO
 		if err != nil {
 			return err
 		}
+		defer result.Body.Close()
 		duration := time.Since(start)
 		promIOCopyLatency.WithLabelValues(op.TestName).Observe(float64(duration.Milliseconds()))
 	}
