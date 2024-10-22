@@ -51,14 +51,6 @@ type S3Configuration struct {
 	Name          string        `yaml:"name" json:"name"`
 }
 
-// GrafanaConfiguration contains all information necessary to add annotations
-// via the Grafana HTTP API
-type GrafanaConfiguration struct {
-	Username string `yaml:"username" json:"username"`
-	Password string `yaml:"password" json:"password"`
-	Endpoint string `yaml:"endpoint" json:"endpoint"`
-}
-
 // TestCaseConfiguration is the configuration of a performance test
 type TestCaseConfiguration struct {
 	Objects struct {
@@ -107,11 +99,10 @@ type S3Option struct {
 
 // TestConf contains all the information necessary to set up a distributed test
 type TestConf struct {
-	S3Configs     []*S3Configuration       `yaml:"s3_configs" json:"s3_configs"`
-	GrafanaConfig *GrafanaConfiguration    `yaml:"grafana_config" json:"grafana_config"`
-	ReportConfig  *ReportConfiguration     `yaml:"report_config" json:"report_config"`
-	GlobalConfig  *GlobalConfiguration     `yaml:"global_config" json:"global_config"`
-	Tests         []*TestCaseConfiguration `yaml:"tests" json:"tests"`
+	S3Configs    []*S3Configuration       `yaml:"s3_configs" json:"s3_configs"`
+	ReportConfig *ReportConfiguration     `yaml:"report_config" json:"report_config"`
+	GlobalConfig *GlobalConfiguration     `yaml:"global_config" json:"global_config"`
+	Tests        []*TestCaseConfiguration `yaml:"tests" json:"tests"`
 }
 
 type GlobalConfiguration struct {

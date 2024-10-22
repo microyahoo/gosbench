@@ -203,14 +203,7 @@ data:
         region: us-east-1
         endpoint: http://10.3.9.221:80
         skipSSLverify: true
-    
-    # For generating annotations when we start/stop testcases
-    # https://grafana.com/docs/http_api/annotations/#create-annotation
-    grafana_config:
-      endpoint: http://grafana
-      username: admin
-      password: grafana
-    
+
     tests:
       - name: clean-4k-128threads
         delete_weight: 100
