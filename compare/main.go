@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -192,17 +193,26 @@ func run() {
 		if !ok {
 			continue
 		}
-		for os1, workerMap1 := range osMap1 {
-			workerMap2, ok := osMap2[os1]
+		sortedOs := make([]uint64, 0)
+		for os := range osMap1 {
+			_, ok := osMap2[os]
 			if !ok {
 				continue
 			}
+			sortedOs = append(sortedOs, os)
+		}
+		sort.Slice(sortedOs, func(i, j int) bool {
+			return sortedOs[i] < sortedOs[j]
+		})
+		for _, os := range sortedOs {
+			workerMap1 := osMap1[os]
+			workerMap2 := osMap2[os]
 			for w1, pcMap1 := range workerMap1 {
 				pcMap2, ok := workerMap2[w1]
 				if !ok {
 					continue
 				}
-				title := fmt.Sprintf("%s-%dKB-%dw", t, os1, w1)
+				title := fmt.Sprintf("%s-%dKB-%dw", t, os, w1)
 				avgMBBandwidth1 := make([]float64, 0)
 				avgLatency1 := make([]float64, 0)
 				ioCopyLatency1 := make([]float64, 0)
@@ -219,13 +229,20 @@ func run() {
 				failedOps2 := make([]float64, 0)
 				ops1 := make([]float64, 0)
 				ops2 := make([]float64, 0)
-				pcs := make([]uint64, 0)
-				for pc1, r1 := range pcMap1 {
-					r2, ok := pcMap2[pc1]
+				sortedPcs := make([]uint64, 0)
+				for pc1 := range pcMap1 {
+					_, ok := pcMap2[pc1]
 					if !ok {
 						continue
 					}
-					pcs = append(pcs, pc1)
+					sortedPcs = append(sortedPcs, pc1)
+				}
+				sort.Slice(sortedPcs, func(i, j int) bool {
+					return sortedPcs[i] < sortedPcs[j]
+				})
+				for _, pc := range sortedPcs {
+					r1 := pcMap1[pc]
+					r2 := pcMap2[pc]
 					avgMBBandwidth1 = append(avgMBBandwidth1, r1.AvgMBBandwidth)
 					avgMBBandwidth2 = append(avgMBBandwidth2, r2.AvgMBBandwidth)
 					avgLatency1 = append(avgLatency1, r1.AvgLatencyMs)
@@ -242,16 +259,16 @@ func run() {
 					failedOps2 = append(failedOps2, r2.FailedOps)
 					ops1 = append(ops1, r1.Ops)
 					ops2 = append(ops2, r2.Ops)
-					log.Infof("%s %d %d %d %v, %v", t, os1, w1, pc1, r1, r2)
+					log.Infof("%s %d %d %d %v, %v", t, os, w1, pc, r1, r2)
 				}
-				bandwidthBar := generateBar(title, "bandwidth(MB/s)", pcs, avgMBBandwidth1, avgMBBandwidth2)
-				avgLatencyBar := generateBar(title, "avg-latency(ms)", pcs, avgLatency1, avgLatency2)
-				ioCopyBar := generateBar(title, "iocopy(ms)", pcs, ioCopyLatency1, ioCopyLatency2)
-				genBytesBar := generateBar(title, "gen-bytes(ms)", pcs, genBytesLatency1, genBytesLatency2)
-				durationBar := generateBar(title, "duration(s)", pcs, duration1, duration2)
-				successfulOpsBar := generateBar(title, "successful-ops", pcs, successfulOps1, successfulOps2)
-				failedOpsBar := generateBar(title, "failed-ops", pcs, failedOps1, failedOps2)
-				opsBar := generateBar(title, "ops", pcs, ops1, ops2)
+				bandwidthBar := generateBar(title, "bandwidth(MB/s)", sortedPcs, avgMBBandwidth1, avgMBBandwidth2)
+				avgLatencyBar := generateBar(title, "avg-latency(ms)", sortedPcs, avgLatency1, avgLatency2)
+				ioCopyBar := generateBar(title, "iocopy(ms)", sortedPcs, ioCopyLatency1, ioCopyLatency2)
+				genBytesBar := generateBar(title, "gen-bytes(ms)", sortedPcs, genBytesLatency1, genBytesLatency2)
+				durationBar := generateBar(title, "duration(s)", sortedPcs, duration1, duration2)
+				successfulOpsBar := generateBar(title, "successful-ops", sortedPcs, successfulOps1, successfulOps2)
+				failedOpsBar := generateBar(title, "failed-ops", sortedPcs, failedOps1, failedOps2)
+				opsBar := generateBar(title, "ops", sortedPcs, ops1, ops2)
 
 				bandwidthPage.AddCharts(bandwidthBar)
 				avgLatencyPage.AddCharts(avgLatencyBar)
