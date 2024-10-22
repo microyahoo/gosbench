@@ -13,7 +13,6 @@
             "skipSSLverify": false 
         }
     ],
-    "grafana_config": { "endpoint": "http://grafana", "username": "admin", "password": "grafana" },
     "tests": [
         { "name": "My first example test", "read_weight": 20, "write_weight": 80, "delete_weight": 0, 
           "list_weight": 0, "bucket_prefix": "1255gosbench-", "object_prefix": "obj", "stop_with_runtime": "1h30m", "stop_with_ops": 10, 

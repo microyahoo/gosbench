@@ -148,7 +148,7 @@ data:
         endpoint: http://10.3.11.83:80
         skipSSLverify: true
         name: k3
-    
+
     report_config:
       format: csv # csv, md or html
       bucket: test
@@ -158,17 +158,10 @@ data:
         region: us-east-1
         endpoint: http://10.3.9.221:80
         skipSSLverify: true
-    
+
     global_config:
       client_gateway_colocation: true # controls whether the client and gateway are on the same node
 
-    # For generating annotations when we start/stop testcases
-    # https://grafana.com/docs/http_api/annotations/#create-annotation
-    grafana_config:
-      endpoint: http://grafana
-      username: admin
-      password: grafana
-    
     tests:
       - name: write-4k
         # read_weight: 20
