@@ -142,6 +142,17 @@ github.com/davecgh/go-spew/spew
 # github.com/fsnotify/fsnotify v1.7.0
 ## explicit; go 1.17
 github.com/fsnotify/fsnotify
+# github.com/go-echarts/go-echarts/v2 v2.4.3
+## explicit; go 1.18
+github.com/go-echarts/go-echarts/v2/charts
+github.com/go-echarts/go-echarts/v2/components
+github.com/go-echarts/go-echarts/v2/datasets
+github.com/go-echarts/go-echarts/v2/event
+github.com/go-echarts/go-echarts/v2/opts
+github.com/go-echarts/go-echarts/v2/render
+github.com/go-echarts/go-echarts/v2/templates
+github.com/go-echarts/go-echarts/v2/types
+github.com/go-echarts/go-echarts/v2/util
 # github.com/go-kit/log v0.2.1
 ## explicit; go 1.17
 github.com/go-kit/log
@@ -149,6 +160,9 @@ github.com/go-kit/log/level
 # github.com/go-logfmt/logfmt v0.6.0
 ## explicit; go 1.17
 github.com/go-logfmt/logfmt
+# github.com/gocarina/gocsv v0.0.0-20240520201108-78e41c74b4b1
+## explicit; go 1.13
+github.com/gocarina/gocsv
 # github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 ## explicit
 github.com/golang/groupcache/lru
