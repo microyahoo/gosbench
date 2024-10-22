@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3config "github.com/aws/aws-sdk-go-v2/config"
@@ -23,7 +24,21 @@ func NewS3Client(ctx context.Context, endpoint, accessKey, secretKey string, reg
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSSLVerify},
 		// dial tcp 10.3.9.232:80: connect: cannot assign requested address
 		// https://github.com/golang/go/issues/16012
-		MaxIdleConnsPerHost: 100,
+		// https://github.com/valyala/fasthttp/blob/d795f13985f16622a949ea9fc3459cf54dc78b3e/client_timing_test.go#L292
+		// https://github.com/etcd-io/etcd/blob/55de68d18c63fde8747f2cd9f7c2ff242346f756/client/pkg/transport/timeout_transport.go#L39
+		// overrides the DefaultMaxIdleConnsPerHost = 2
+		MaxIdleConnsPerHost: 1024, // allow more idle connections between peers to avoid unnecessary port allocation
+
+		// https://gitlab.com/gitlab-org/gitlab-pages/-/merge_requests/274#note_335755221
+		//
+		// Not setting this results in connections in the pool staying open forever. When the pool size is 2,
+		// this is unlikely to matter much, as we're highly unlikely to leave those connections idle.
+		// But with a higher number of connections in the pool, we'll probably want to set this so that after a burst of activity,
+		// we can close idle connections. Perhaps a value like 15 minutes for benchmark test?
+		//
+		// https://github.com/yarpc/yarpc-go/issues/1906
+		// https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die/
+		IdleConnTimeout: 15 * time.Minute,
 	}
 	var hc *http.Client
 	if skipStats {
