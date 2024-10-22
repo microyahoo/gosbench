@@ -5,6 +5,7 @@ VCS_REF := $(shell git rev-parse HEAD)
 build-local:
 	@go build -o ./bin/gosbench-server ./server
 	@go build -o ./bin/gosbench-worker ./worker
+	@go build -o ./bin/compare ./compare
 
 build:
 	docker pull reg.deeproute.ai/deeproute-public/go/golang:alpine

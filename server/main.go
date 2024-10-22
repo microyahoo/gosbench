@@ -365,7 +365,7 @@ func (s *Server) generateResults(results []*common.BenchmarkResult) {
 			t.SetOutputMirror(f)
 		}
 		t.AppendHeader(table.Row{"type", "object-size(KB)", "workers", "parallel-clients", "avg-bandwidth(MB/s)", "ops", "avg-latency(ms)",
-			"gen-bytes-avg-latency(ms)", "io-copy-avg-latency(ms)", "successful-ops", "failed-ops", "duration(s)", "total-mbytes", "name",
+			"gen-bytes-avg-latency(ms)", "io-copy-avg-latency(ms)", "successful-ops", "failed-ops", "duration", "total-mbytes", "name",
 		})
 		for _, r := range results {
 			t.AppendRow(table.Row{
