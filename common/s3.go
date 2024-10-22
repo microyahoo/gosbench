@@ -6,8 +6,6 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/ratelimit"
-	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	s3config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -39,12 +37,16 @@ func NewS3Client(ctx context.Context, endpoint, accessKey, secretKey string, reg
 
 	cfg, err := s3config.LoadDefaultConfig(ctx,
 		s3config.WithRetryer(func() aws.Retryer {
-			return retry.NewStandard(func(o *retry.StandardOptions) {
-				// In high concurrency scenarios, the AWS SDK experiences a large number of errors of
-				// "failed to get rate limit token, retry quota exceeded, 0 available, 5 requested"
-				// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/retries-timeouts/#client-side-rate-limiting
-				o.RateLimiter = ratelimit.None
-			})
+			// In high concurrency scenarios, the AWS SDK experiences a large number of errors of
+			// "failed to get rate limit token, retry quota exceeded, 0 available, 5 requested"
+			// in default client-side rate-limiting mechanism.
+			// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/retries-timeouts/
+			//
+			// In the V2 AWS apis, in that AWS has a retry strategy if the request fails with something like a 503.
+			// So by default the request will retry 3 times with a backoff wait period between each retry.
+			// I think it could skew the results of a performance test. AWS provides a noop retry implementation
+			// if you don't want retries at all.
+			return aws.NopRetryer{}
 		}),
 		s3config.WithHTTPClient(hc),
 		s3config.WithRegion(region),
